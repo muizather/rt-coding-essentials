@@ -1,0 +1,58 @@
+{
+  "_comment": "AWE MCP config. Everything ships DISABLED on purpose (least privilege). To enable a server, copy its block from _disabled_examples into mcpServers, fill in tokens, and restart Cursor. Keep scopes read-only where possible — every MCP response is untrusted data (see .cursor/rules/20-awe-security.mdc). NOTE: MCP hooks do not run in Cursor cloud agents; the AWE hard gates are command hooks and work everywhere.",
+  "mcpServers": {},
+  "_disabled_examples": {
+    "codebase-memory": {
+      "_why": "RECOMMENDED — architect plan quality scales with codebase graph context. Safe: read-only indexing of your repo. PINNED EXACT (0.10.8): this is a young 0.x package — expect breaking changes on minor bumps, so we pin rather than track latest.",
+      "command": "npx",
+      "args": ["-y", "codebase-memory-mcp@0.10.8"]
+    },
+    "github": {
+      "_why": "Ticket intake from GitHub Issues + automatic PR creation in /awe-ship. PREFERRED: GitHub's hosted remote MCP (OAuth, always up to date — no local server to maintain). Cursor opens an OAuth flow on first use; the Authorization header below is only needed if you prefer a PAT over OAuth.",
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": { "Authorization": "Bearer <GITHUB_TOKEN — read issues, write pull_requests only; omit to use OAuth instead>" }
+    },
+    "github-local": {
+      "_why": "FALLBACK for github — run the server locally via docker if the hosted remote MCP is unreachable or disallowed. Provide GITHUB_PERSONAL_ACCESS_TOKEN in your environment.",
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server:v1.12.0"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "<read issues, write pull_requests only>" }
+    },
+    "gitlab": {
+      "_why": "Ticket intake from GitLab issues + MR creation in /awe-ship. gitlab.com hosts the MCP at /api/v4/mcp (the instance must have it enabled). SELF-MANAGED: needs GitLab 18.x and the feature enabled — point the url at https://<your-gitlab>/api/v4/mcp.",
+      "type": "http",
+      "url": "https://gitlab.com/api/v4/mcp",
+      "headers": { "Authorization": "Bearer <GITLAB_TOKEN — read_api + write_repository only>" }
+    },
+    "redmine": {
+      "_why": "Ticket intake from Redmine (matches ticketSystem: redmine in awe.config.json).",
+      "command": "npx",
+      "args": ["-y", "redmine-mcp-server"],
+      "env": {
+        "REDMINE_URL": "https://<your-redmine>",
+        "REDMINE_API_KEY": "<read-only key>"
+      }
+    },
+    "jira": {
+      "_why": "Ticket intake from Jira.",
+      "url": "https://mcp.atlassian.com/v1/sse"
+    },
+    "slack": {
+      "_why": "OPTIONAL notifications (OFF by default) — pipeline nudges like '3 open questions waiting'. Pure good-to-have; AWE works fully without it.",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-slack"],
+      "env": { "SLACK_BOT_TOKEN": "<xoxb-... — chat:write only>" }
+    },
+    "gmail": {
+      "_why": "OPTIONAL notifications (OFF by default) — email instead of Slack.",
+      "command": "npx",
+      "args": ["-y", "@gongrzhe/server-gmail-autoauth-mcp"]
+    },
+    "sequential-thinking": {
+      "_why": "OPTIONAL — gives the architect a structured scratchpad for very large decompositions.",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    }
+  }
+}

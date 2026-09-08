@@ -1,0 +1,156 @@
+# AWE Gates — the L4 hard gate (GitLab CI).
+#
+# Server-side backstop for the AWE pipeline: re-runs the quality and security
+# checks on every MR so local agent claims are verified independently.
+# Adjust AWE_TEST_CMD / AWE_LINT_CMD to match awe.config.json. Non-Node
+# projects: replace the test job script, keep the scanner jobs.
+
+stages:
+  - test
+  - secure
+
+variables:
+  AWE_TEST_CMD: npm test
+  AWE_LINT_CMD: npm run lint
+  # Node 24.x 'Krypton' — Active LTS (EOL Apr 2028). Node 26 becomes LTS
+  # 2026-10-28; bump NODE_IMAGE (and package.json engines) then.
+  NODE_IMAGE: node:24
+  # Scanner images pinned to verified versions (2026-09-08) — never :latest.
+  GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1
+  SEMGREP_IMAGE: semgrep/semgrep:1.176.0
+  OSV_IMAGE: ghcr.io/google/osv-scanner:v2.5.1
+  CHECKOV_IMAGE: bridgecrew/checkov:3.3.16
+  ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:v2.17.0
+  # cfn-guard 3.2.1 — repo aws-cloudformation/cloudformation-guard has TAGS ONLY
+  # (no Releases entries); the binary is fetched from the pinned tag's asset.
+  CFN_GUARD_URL: https://github.com/aws-cloudformation/cloudformation-guard/releases/download/3.2.1/cfn-guard-v3-x86_64-ubuntu-latest.tar.gz
+
+default:
+  # Least privilege: no persisted creds, fresh checkout per job.
+  before_script: []
+
+# ------------------------------------------------------------------ quality
+lint:
+  stage: test
+  image: ${NODE_IMAGE}
+  script:
+    - npm ci
+    - ${AWE_LINT_CMD}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "staging" || $CI_COMMIT_BRANCH == "main"
+
+# The claim made in .cursor/state/awe-evidence.json, re-verified server-side.
+test:
+  stage: test
+  image: ${NODE_IMAGE}
+  script:
+    - npm ci
+    - ${AWE_TEST_CMD}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "staging" || $CI_COMMIT_BRANCH == "main"
+
+# ------------------------------------------------------------------ secrets
+# gitleaks v8.30.1 (image moved to ghcr.io/gitleaks). v8.19+ uses the `git`
+# subcommand (detect/protect are deprecated) — the command below is current.
+gitleaks:
+  stage: secure
+  image:
+    name: ${GITLEAKS_IMAGE}
+    entrypoint: [""]
+  variables:
+    GIT_DEPTH: 0  # full history — secrets hide in old commits
+  script:
+    - gitleaks git --redact --exit-code 1 .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ------------------------------------------------------------------ SAST
+# The old semgrep-action is deprecated/archived; run the CLI from the pinned
+# official image (no Semgrep account needed for p/default).
+semgrep:
+  stage: secure
+  image:
+    name: ${SEMGREP_IMAGE}
+    entrypoint: [""]
+  script:
+    # p/default ruleset; exit nonzero on findings → the gate holds.
+    - semgrep scan --config p/default --error
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# --------------------------------------------------------- dependency vulns
+osv_scanner:
+  stage: secure
+  image:
+    name: ${OSV_IMAGE}
+    entrypoint: [""]
+  script:
+    - osv-scanner scan --recursive .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ------------------------------------------------------------------ IaC
+# Only runs when the repo actually contains IaC (infra/ dir or *.tf files).
+checkov:
+  stage: secure
+  image:
+    name: ${CHECKOV_IMAGE}
+    entrypoint: [""]
+  script:
+    # No API key → results stay local (no Bridgecrew platform account needed).
+    - checkov --directory . --quiet
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      exists:
+        - "infra/**/*"
+        - "*.tf"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "infra/**/*"
+        - "*.tf"
+
+# --------------------------------------------- CloudFormation policy-as-code
+# Runs when the repo has BOTH CloudFormation templates and guard rules
+# (*.guard / *.guardrules) — without your rules there is nothing to validate.
+cfn_guard:
+  stage: secure
+  image: ${NODE_IMAGE}  # any image with curl + tar works; node:24 has both
+  script:
+    - |
+      CFN=$(find . \( -name '*.template' -o -name 'template.y*ml' \) -not -path './node_modules/*' -print -quit)
+      RULES=$(find . \( -name '*.guard' -o -name '*.guardrules' \) -not -path './node_modules/*' -print -quit)
+      if [ -z "$CFN" ] || [ -z "$RULES" ]; then
+        echo "no CFN templates or no guard rules found — skipping cfn-guard"
+        exit 0
+      fi
+      curl -fsSL -o /tmp/cfn-guard.tar.gz "$CFN_GUARD_URL"
+      tar -xzf /tmp/cfn-guard.tar.gz -C /tmp
+      GUARD_BIN=$(find /tmp -maxdepth 2 -name cfn-guard -type f | head -1)
+      "$GUARD_BIN" --version
+      "$GUARD_BIN" validate --data . --type CFNTemplate --rules .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ------------------------------------------------------------------ DAST
+# OPTIONAL — runs only when the CI/CD variable AWE_DAST_TARGET is set
+# (Settings → CI/CD → Variables), e.g. https://staging.example.com.
+# ZAP baseline: passive scan + spider; the job fails on alerts (no -I flag).
+zap_baseline:
+  stage: secure
+  image:
+    name: ${ZAP_IMAGE}
+    entrypoint: [""]
+  script:
+    - zap-baseline.py -t "$AWE_DAST_TARGET" -J zap-report.json
+  artifacts:
+    when: always
+    paths:
+      - zap-report.json
+  rules:
+    - if: $AWE_DAST_TARGET

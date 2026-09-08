@@ -1,0 +1,28 @@
+{
+  "name": "agentic-workflow-essentials",
+  "version": "0.1.0",
+  "description": "AWE — a phase-gated multi-agent meta-harness for Cursor. Clone, run setup.mjs in your project, get enforced INTAKE → ARCHITECT → APPROVE → CODE → REVIEW → VERIFY → SHIP → POST-MERGE pipelines.",
+  "type": "module",
+  "bin": {
+    "awe-setup": "./setup.mjs"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "setup": "node setup.mjs",
+    "check": "node --check setup.mjs && for f in template/.cursor/hooks/*.mjs template/.cursor/hooks/lib/*.mjs; do node --check \"$f\"; done"
+  },
+  "keywords": [
+    "cursor",
+    "agentic",
+    "workflow",
+    "ai-guardrails",
+    "hooks",
+    "multi-agent",
+    "code-review",
+    "boilerplate"
+  ],
+  "license": "MIT",
+  "private": false
+}

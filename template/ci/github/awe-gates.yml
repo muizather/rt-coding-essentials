@@ -1,0 +1,201 @@
+# AWE Gates — the L4 hard gate (GitHub Actions).
+#
+# Cursor hooks (L0–L3) and human gates (L5) protect the developer loop; THIS
+# workflow is the server-side backstop. It runs on every PR to the base branch
+# and must be green before merge. Nothing here depends on AWE being installed
+# on the runner — it re-verifies the claims agents made locally.
+#
+# Setup notes:
+#   * Actions are pinned to full commit SHAs (supply-chain hygiene) with the
+#     version in a trailing comment. template/.github/dependabot.yml keeps the
+#     pins fresh (Dependabot understands SHA-pinned actions).
+#   * Adjust AWE_TEST_CMD / AWE_LINT_CMD to match awe.config.json.
+#   * `npm ci` requires your project's own package-lock.json (AWE never
+#     creates or modifies it). Non-Node projects: replace the test job's
+#     steps with your stack's equivalents and keep the scanner jobs.
+#   * Versions verified 2026-09-08. All actions below run on Node 24 (GitHub
+#     removes the Node 20 runtime from runners on 2026-09-16 — do NOT pin
+#     anything that still uses node20).
+
+name: awe-gates
+
+on:
+  pull_request:
+  push:
+    branches: [develop, staging, main]  # include your configured baseBranch
+
+permissions:
+  contents: read  # least privilege; scanner jobs declare the extra scopes they need
+
+env:
+  AWE_TEST_CMD: npm test
+  AWE_LINT_CMD: npm run lint
+  # Node 24.x 'Krypton' — Active LTS (EOL Apr 2028). Node 26 becomes LTS
+  # 2026-10-28; bump NODE_LTS (and package.json engines) then.
+  NODE_LTS: '24'
+
+jobs:
+  # ---------------------------------------------------------------- quality
+  test:
+    name: lint + test (evidence re-check)
+    runs-on: ubuntu-latest
+    steps:
+      # persist-credentials: false → the token never lingers in .git/config
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_LTS }}
+      - run: npm ci
+      - name: lint
+        run: ${{ env.AWE_LINT_CMD }}
+      - name: test — the claim made in awe-evidence.json, re-verified server-side
+        run: ${{ env.AWE_TEST_CMD }}
+
+  # ---------------------------------------------------------------- secrets
+  gitleaks:
+    name: secrets scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0  # full history — secrets hide in old commits
+      # gitleaks-action v3 runs on Node 24 (v2 BREAKS on 2026-09-16 when the
+      # Node 20 runtime is removed from runners). ORGS: gitleaks is no longer
+      # free for organization use — add a GITLEAKS_LICENSE repo secret (see
+      # https://gitleaks.io). Personal repos may omit it.
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ---------------------------------------------------------------- SAST
+  semgrep:
+    name: SAST (semgrep p/default)
+    runs-on: ubuntu-latest
+    # semgrep-action is DEPRECATED/archived — run the CLI from the pinned
+    # official image instead (no Semgrep account needed for p/default). The
+    # image ships git, so actions/checkout works inside the container.
+    container: semgrep/semgrep:1.176.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # --error turns findings into a failing gate.
+      - name: Semgrep scan
+        run: semgrep scan --config p/default --error
+
+  # ------------------------------------------------------- dependency vulns
+  # osv-scanner-action is a REUSABLE WORKFLOW (not a step action). The PR
+  # variant fails only on vulnerabilities NEW to this branch. It needs
+  # security-events: write to publish results, which GitHub does NOT grant on
+  # PRs from forks — there the scan reports but cannot block (same-repo PRs,
+  # the normal AWE case, are unaffected). Runs on PRs only; push events skip it.
+  osv:
+    name: dependency vulnerabilities (osv-scanner)
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      actions: read           # read the base-branch scan artifact for the diff
+      security-events: write  # publish findings to code scanning
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
+
+  # ---------------------------------------------------------------- CodeQL
+  # CodeQL v4 (v3 is deprecated Dec 2026). Conditional: skipped when the repo
+  # has no JS/TS so non-JS projects stay green.
+  codeql:
+    name: CodeQL SAST (JS/TS — conditional)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # upload SARIF results
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Detect JS/TS
+        id: detect
+        run: |
+          if find . -type f \( -name '*.js' -o -name '*.ts' -o -name '*.jsx' -o -name '*.tsx' -o -name '*.mjs' -o -name '*.cjs' \) -not -path './node_modules/*' -print -quit | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: CodeQL init
+        if: steps.detect.outputs.present == 'true'
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          languages: javascript-typescript
+      - name: CodeQL analyze
+        if: steps.detect.outputs.present == 'true'
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+
+  # ---------------------------------------------------------------- IaC
+  iac:
+    name: IaC scan (checkov — conditional)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Detect IaC (infra/ dir or any *.tf)
+        id: detect
+        run: |
+          if [ -d infra ] || find . -name '*.tf' -not -path './node_modules/*' -print -quit | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Checkov
+        if: steps.detect.outputs.present == 'true'
+        # The checkov repo publishes TAGS ONLY (no GitHub Releases); v12.3122.0
+        # is current. skip_results_upload avoids needing a Bridgecrew account.
+        uses: bridgecrewio/checkov-action@f967808197a8d784d3e72919f38c3ff0cda7884e # v12.3122.0
+        with:
+          quiet: true
+          soft_fail: false
+          skip_results_upload: true
+      # cfn-guard 3.2.1 (aws-cloudformation/cloudformation-guard — the repo has
+      # TAGS ONLY; the binary is fetched from the pinned tag's release asset).
+      # Runs only when the repo has BOTH CloudFormation templates (*.template /
+      # template.y*ml) and guard rules (*.guard / *.guardrules) — policy-as-code
+      # needs your rules; without them there is nothing to validate against.
+      # No `if` here: the step does its own detection — a CFN-only repo (no
+      # infra/ dir, no *.tf) must still get its policy check.
+      - name: cfn-guard (CloudFormation policy-as-code — conditional)
+        run: |
+          set -euo pipefail
+          CFN=$(find . \( -name '*.template' -o -name 'template.y*ml' \) -not -path './node_modules/*' -print -quit)
+          RULES=$(find . \( -name '*.guard' -o -name '*.guardrules' \) -not -path './node_modules/*' -print -quit)
+          if [ -z "$CFN" ] || [ -z "$RULES" ]; then
+            echo "no CFN templates or no guard rules found — skipping cfn-guard"
+            exit 0
+          fi
+          curl -fsSL -o /tmp/cfn-guard.tar.gz \
+            https://github.com/aws-cloudformation/cloudformation-guard/releases/download/3.2.1/cfn-guard-v3-x86_64-ubuntu-latest.tar.gz
+          tar -xzf /tmp/cfn-guard.tar.gz -C /tmp
+          GUARD_BIN=$(find /tmp -maxdepth 2 -name cfn-guard -type f | head -1)
+          "$GUARD_BIN" --version
+          # Validate every CFN template under the repo against every rule file.
+          "$GUARD_BIN" validate --data . --type CFNTemplate --rules .
+
+  # ---------------------------------------------------------------- DAST (optional)
+  # Runs ONLY when the repo variable AWE_DAST_TARGET is set (Settings → Secrets
+  # and variables → Actions → Variables), e.g. https://staging.example.com.
+  # zaproxy/action-baseline v0.15.0 (ZAP 2.17.0). allow_issue_writing is off —
+  # the job failing IS the signal; no auto-filed issues.
+  dast:
+    name: DAST baseline (ZAP — optional, needs AWE_DAST_TARGET)
+    if: vars.AWE_DAST_TARGET != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+        with:
+          target: ${{ vars.AWE_DAST_TARGET }}
+          allow_issue_writing: false

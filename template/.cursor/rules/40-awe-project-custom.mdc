@@ -1,0 +1,21 @@
+---
+description: Project-specific AWE optimizations — edit freely, setup never overwrites. Attach with globs or mention manually.
+alwaysApply: false
+---
+
+# Project Custom Layer (forever-optimizations)
+
+This file is **yours**. `awe-setup` creates it once and never touches it again — not on re-run, not on upgrade. Rules 00/10/20 are refreshed by setup; this layer is where your project accumulates its own wisdom over time.
+
+Use it for things like:
+
+- **Conventions** — "migrations live in `db/migrate`, never edit old ones", "all API errors use the `AppError` shape".
+- **Gotchas** — "the staging bucket is shared, never run integration tests against it", "`FlakyTest.checkout` needs `--runInBand`".
+- **Patterns discovered mid-ticket** — when a review finding teaches something general, write the lesson here so every future agent run benefits.
+- **House style** — naming, folder layout, preferred libraries (so agents stop proposing alternatives).
+
+Tips:
+
+- Keep it short and high-signal; long rule files dilute attention.
+- Split into additional `.mdc` files with `globs:` frontmatter when a rule only applies to part of the tree (e.g. `globs: ["src/api/**"]`).
+- Delete entries that stop being true. Stale rules are worse than no rules.

@@ -1,0 +1,76 @@
+---
+description: AWE phase machine — the 8 phases, allowed actions, state file format, evidence contract, iteration budget. Always applies.
+alwaysApply: true
+---
+
+# AWE Phase Machine
+
+## The 8 phases
+
+| # | Phase | What happens | Human gate? |
+|---|-------|--------------|-------------|
+| 1 | `intake` | Ticket pulled (or pasted), sanitized into a structured spec, open questions collected in `plans/<ticket>/open-questions.md`. | Answers questions asynchronously by editing `open-questions.md`. |
+| 2 | `architect` | `awe-architect` subagent decomposes the spec into `architecture.md` + one `<role>.plan.md` per role, with a dependency graph. | Reads the plans, corrects direction. |
+| 3 | `approve` | `/awe-approve` validates every open question is answered and every dependency is acknowledged, then flips each plan to `status: approved`. | **HARD GATE.** Nothing codes without this. |
+| 4 | `code` | Per role: `/awe-code <role>` creates worktree + branch `awe/<ticket>-<role>`, writes `handoff.md`, spawns the role dev subagent. Roles proceed **in parallel**. | Watches, answers questions. |
+| 5 | `review` | Scanners run; `awe-reviewer` + `awe-security-reviewer` review each role's diff in parallel; findings in `reviews/round-<N>.md`. `needs-fix` → respawn coder; `verified` → next phase. | Intervenes on any finding. |
+| 6 | `verify` | `awe-verifier` writes `verification.md`: numbered human test steps (setup, URLs/commands, expected results, screenshots). | **HARD GATE.** Human tests by hand, then writes `verified: true` + initials + date. |
+| 7 | `ship` | `/awe-ship` pre-flight (signoff + fresh evidence + clean scanners), commit, push `awe/<ticket>-*` branch, open PR via MCP or printed commands. | Merges the PR. |
+| 8 | post-merge E2E | Combined end-to-end run on the base branch. Regressions re-enter via `/awe-regression` as `plans/<ticket>-R<N>/`. | Confirms production behavior. |
+
+## Allowed actions per phase (hard-enforced by hooks)
+
+| Phase | Write code | Write `plans/<ticket>/` | `git push` | Spawn dev subagent | Spawn reviewer |
+|---|---|---|---|---|---|
+| intake / architect / approve | ❌ hook denies | ✅ | ❌ | ❌ | ❌ |
+| code | ✅ (role scope) | ✅ | ❌ | ✅ (approved plan only) | ✅ |
+| review | ✅ (fixes) | ✅ | ❌ | ✅ (fix rounds) | ✅ |
+| verify | ❌ (docs only by convention) | ✅ | ❌ | ❌ | ❌ |
+| ship | ❌ | ✅ | ✅ (gated: signoff + evidence + branch) | ❌ | ❌ |
+
+## State file — `.cursor/state/awe-state.json`
+
+Only `/awe-*` skills write this file. Shape:
+
+```json
+{
+  "active": true,
+  "ticket": "PROJ-123",
+  "phase": "intake|architect|approve|code|review|verify|ship|done",
+  "roles": {
+    "backend":  { "planStatus": "draft|questions-open|approved", "iteration": 0, "verified": false },
+    "frontend": { "planStatus": "draft|questions-open|approved", "iteration": 0, "verified": false }
+  },
+  "updatedAt": "<ISO-8601>"
+}
+```
+
+- `active: false` (or a missing file) means **AWE does not interfere at all** — every hook exits immediately.
+- `iteration` counts completed review rounds for that role.
+- `verified` flips true only on a reviewer's `verified` verdict.
+
+## Evidence contract — `.cursor/state/awe-evidence.json`
+
+Written by the coding agent after running the configured test command (`commands.test` in `awe.config.json`), and refreshed after every fix round:
+
+```json
+{ "testsPassed": true, "command": "npm test", "at": "<ISO-8601>" }
+```
+
+The `stop` hook demands evidence younger than **2 hours** before it lets a code/review session end. Stale or missing evidence forces the agent to re-run tests instead of claiming done.
+
+This evidence is the machine-checkable slice of the standing **Definition of Done** — see `.cursor/skills/references/definition-of-done.md`. The DoD is the full bar (correctness, quality, integration, docs, ship-readiness); `awe-evidence.json` proves the Correctness slice (tests pass, run with the repo's own command, fresh), and the remaining slices are enforced by the review and ship gates. AWE never treats "tests pass" alone as done.
+
+## Human signoff — `.cursor/state/awe-signoff.json`
+
+Written by the human (or by the `/awe-verify` skill confirming the human's edit to `verification.md`):
+
+```json
+{ "verified": true, "initials": "MA", "at": "<ISO-8601>" }
+```
+
+`git push` in the ship phase is blocked until this exists with `verified: true`.
+
+## Iteration budget semantics
+
+`reviewIterations` (default 3, set at setup) is a **hard budget per ticket**, not a suggestion. While `iteration < reviewIterations`, a `needs-fix` verdict respawns the coder with the findings appended to `handoff.md`. When the budget is reached without `verified`, the pipeline writes `plans/<ticket>/ESCALATION.md` and stops for a human decision. The budget exists so a stuck loop bothers a human instead of burning tokens.

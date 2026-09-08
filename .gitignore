@@ -1,0 +1,15 @@
+# Dependencies (AWE itself has zero, but be safe)
+node_modules/
+
+# AWE runtime state (audit logs, evidence, signoff) — machine-local, never commit
+.cursor/state/
+
+# Logs
+*.log
+
+# IDE metadata
+.idea/
+
+# Optional: keep per-ticket plan workspaces out of git.
+# Uncomment if your team does NOT want plans/ committed (most teams DO commit them).
+# plans/*/

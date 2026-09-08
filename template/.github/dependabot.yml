@@ -1,0 +1,20 @@
+# Dependabot — keeps the SHA-pinned GitHub Actions in .github/workflows fresh.
+#
+# AWE pins every action to a full commit SHA (supply-chain hygiene) with the
+# version in a trailing comment. Dependabot understands SHA pinning: it opens
+# PRs that bump BOTH the SHA and the `# vX.Y.Z` comment, so the pins never rot.
+#
+# This file is yours once installed — extend it with your project's own
+# ecosystems (npm, pip, docker, …). AWE only manages the github-actions block.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/" # .github/workflows is implied for this ecosystem
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "ci"]
+    # Group all action bumps into a single PR to keep noise down.
+    groups:
+      github-actions:
+        patterns: ["*"]

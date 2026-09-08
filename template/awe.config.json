@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "projectName": "my-project",
+  "baseBranch": "develop",
+  "roles": ["backend", "frontend"],
+  "commands": {
+    "test": "npm test",
+    "lint": "npm run lint"
+  },
+  "reviewIterations": 3,
+  "triggerMode": "manual",
+  "ticketSystem": "none",
+  "notifications": {
+    "enabled": false,
+    "slack": false,
+    "gmail": false
+  },
+  "strictSecurity": false,
+  "envUrls": {},
+  "deployCommands": {},
+  "_awe": {
+    "generatedBy": "awe-setup",
+    "aweVersion": "0.1.0",
+    "generatedAt": ""
+  }
+}
