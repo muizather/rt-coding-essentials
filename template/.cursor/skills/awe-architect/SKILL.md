@@ -1,7 +1,6 @@
 ---
 name: awe-architect
 description: Run the architecture phase — spawns the awe-architect subagent to produce architecture.md and per-role plans. Usage: /awe-architect
-disable-model-invocation: true
 ---
 
 # awe-architect
@@ -12,7 +11,7 @@ disable-model-invocation: true
 
 1. **Gate check.** `.cursor/state/awe-state.json` must be `active: true` with `phase: architect`. If `phase` is anything else, stop and tell the human the current phase (skills only move forward; use `/awe-regression` to re-enter).
 2. **Ingest answers.** Read `plans/<ticket>/open-questions.md`: fold every answered question into `intake.md` (assumptions/constraints) so the architect sees one coherent spec.
-3. **Spawn the `awe-architect` subagent** with this brief: ticket id, paths to `intake.md` and `open-questions.md`, the roles from `awe.config.json`, and instruction to use memory/codebase MCP tools when available. (The subagent-gate hook independently verifies the phase.)
+3. **Spawn the `awe-architect` subagent** with this brief: ticket id, paths to `intake.md` and `open-questions.md`, the discovered or configured `roles`, and instruction that **codebase-memory graph tools are required** (`search_graph`, `trace_path`, `get_architecture`). If those tools are missing, STOP — do not fall back to a blind file walk. (The subagent-gate hook independently verifies the phase.)
 4. **Verify its output contract** after it returns (full contract in `references/plan-task-template.md`):
    - `plans/<ticket>/architecture.md` exists with a dependency graph and an explicit cross-role contract.
    - `plans/<ticket>/<role>.plan.md` exists for each configured role, frontmatter `status` is `draft` or `questions-open`, and **every task follows the task template**: a description, checkbox **acceptance criteria** (testable), a **verification** step naming the repo's own test/build command, **files likely touched**, a **depends-on** list, and an **XS–XL size**. S/M tasks are ideal; anything L or larger must be broken down further.

@@ -1,0 +1,27 @@
+{
+  "name": "awe",
+  "description": "Agentic Workflow Essentials — phase-gated multi-agent pipeline (intake → architect → approve → code → review → verify → ship) with hooks, codebase graph, and optional Slack/GitHub/GitLab reporting.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Muiz Athar"
+  },
+  "homepage": "https://github.com/muizather/rt-coding-essentials",
+  "repository": "https://github.com/muizather/rt-coding-essentials",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "hooks",
+    "multi-agent",
+    "code-review",
+    "pipeline"
+  ],
+  "skills": "./template/.cursor/skills",
+  "agents": "./template/.cursor/agents",
+  "rules": [
+    "./template/.cursor/rules/00-awe-constitution.mdc",
+    "./template/.cursor/rules/10-awe-phases.mdc",
+    "./template/.cursor/rules/15-awe-runtime.mdc",
+    "./template/.cursor/rules/20-awe-security.mdc"
+  ],
+  "hooks": "./hooks/hooks.json"
+}

@@ -1,0 +1,54 @@
+---
+description: AWE runtime — discover repo settings, require the code graph, capture knowledge, optional MCP reporting. Always applies.
+alwaysApply: true
+---
+
+# AWE Runtime (plugin)
+
+No `awe.config.json` is required. Optional local `awe.config.json` overrides discovered values. Rule 30/40 are not part of this plugin — project-specific lessons belong in the user's own Cursor rules or in the codebase-memory ADR store.
+
+## Discover (do not invent commands)
+
+On first use in a workspace, settings live in `.cursor/state/awe-discovered.json` (machine-local):
+
+- **baseBranch** — `origin/HEAD`, else `main` / `master` / `develop`, else the current branch
+- **commands.test** — this repo's actual test script (`package.json` / `pytest` / `go test` / `cargo test` / `make test` / wrappers). Never assume `npm test` without looking
+- **roles** — `backend` and/or `frontend` from the tree; default `backend`
+
+If `awe.config.json` exists, its fields win. Hooks read the merged result via `loadConfig`.
+
+## Codebase-memory MCP (required)
+
+AWE ships `codebase-memory-mcp@0.10.8` in the plugin. The human still has to **enable** it once (Cursor will not silent-trust MCP).
+
+Before architecture or coding:
+
+1. If graph tools (`list_projects`, `search_graph`, `index_repository`, `manage_adr`, …) are missing → **STOP**. Tell the human: Customize → AWE plugin → enable **codebase-memory**, reload.
+2. `list_projects` / `index_status`. If this repo is not indexed → `index_repository` with the **absolute** project path.
+3. Plan and implement against the graph (`search_graph`, `trace_path`, `get_architecture`, `check_index_coverage`). File grep is fallback only after a coverage miss, not instead of the MCP.
+
+Do not quietly degrade to "search the tree and hope."
+
+## Knowledge (ADRs, not plugin rules)
+
+Two stores:
+
+- **Code map** — the graph (index + watcher). Agents do not write essays into it.
+- **Project knowledge** — `manage_adr` on the same MCP (decisions, invariants, "staging bucket is shared").
+
+Write or update an ADR when:
+
+- The user says this is knowledge / remember this / "we always …" → `/awe-remember` (or the same procedure inline).
+- A ticket **ships** and a real decision was made (approach, rejected alternative, invariant). Skip drive-by refactors.
+
+Never copy repo A's ADRs into repo B. Never put tribal knowledge into AWE plugin rules.
+
+Optional markdown under the app's `docs/` only if the human asked for committed docs.
+
+## Orchestration
+
+Prefer `/awe-run` (or a natural-language ticket). It chains intake → architect → code → review until tests are green. It **stops** for an explicit **yes** at APPROVE and for hands-on VERIFY. Hedged chat is not approval.
+
+## Optional reporting
+
+If Slack, GitHub, or GitLab MCP tools are actually available, post a short status at phase boundaries (questions waiting, review needs-fix, verified, PR opened). If they are not connected, **skip** — do not fail the pipeline. See `skills/references/mcp-report.md`.

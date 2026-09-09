@@ -1,6 +1,6 @@
 # Agentic Workflow Essentials (AWE)
 
-**A phase-gated, multi-agent workflow harness for [Cursor](https://cursor.com).** Clone this repo, run one setup script inside your project, and every non-trivial change flows through an enforced pipeline with human gates where they matter — no code before an approved plan, no merge without a human's hands-on verification, no "the agent said it's done" without fresh test evidence.
+**A phase-gated, multi-agent workflow harness for [Cursor](https://cursor.com).** Install it as a **Cursor Plugin** (Customize → Install). It brings skills, agents, rules, hooks, and the **codebase-memory** graph. Describe a ticket (or run `/awe-run`); agents chain through code and review. You still say **yes** to the plan and **sign** hands-on verify. No `awe.config.json` required — AWE discovers the default branch and test command. Optional `setup.mjs` remains if you want a repo-committed copy (cloud agents).
 
 ```
  ┌─────────┐   ┌────────────┐   ┌──────────┐   ┌────────┐   ┌─────────┐   ┌────────┐   ┌───────┐   ┌──────────────┐
@@ -21,14 +21,38 @@
 **30-second vocabulary** (five words AWE uses everywhere):
 
 - **Hook** — a small script Cursor runs around an agent action (write a file, run a shell command, spawn a subagent, end a session) that can allow or deny it. AWE's hard enforcement lives here.
-- **Skill** — a slash-command playbook you invoke in chat (`/awe-intake`, `/awe-code`, …). Skills move the pipeline between phases; nothing else does.
+- **Skill** — a playbook (`/awe-run`, `/awe-intake`, …). `/awe-run` chains phases; hooks still block skipped gates.
 - **Subagent** — a fresh-context agent the main chat spawns for one bounded job (architect, role dev, reviewer, verifier). Isolation is the point: a reviewer that didn't write the code reviews it honestly.
-- **MCP** — Model Context Protocol; plugins that let Cursor talk to outside systems (your ticket tracker, GitHub/GitLab). AWE ships them all **disabled** — pure optionals.
+- **MCP** — Model Context Protocol. **codebase-memory** is required (enable it once on the plugin). GitHub / GitLab / Slack are optional — if connected, agents report status; if not, the pipeline still runs. See [docs/GUIDE.md](docs/GUIDE.md).
 - **Worktree** — a second checkout of your repo in a sibling folder on its own branch. Backend and frontend code in parallel worktrees without ever colliding.
 
 ---
 
-## 1. What setup installs
+## 1. Install (plugin)
+
+Repo: **https://github.com/muizather/rt-coding-essentials** (public). Anyone with that link can install.
+
+**From Cursor (share this):**
+
+1. In chat: `/add-plugin https://github.com/muizather/rt-coding-essentials`  
+   or **Customize → Plugins → Add from GitHub** and paste the same URL.
+2. Install **awe** (user or this-workspace scope). Enable the **codebase-memory** MCP when Cursor asks.
+3. Reload the window. Open any app repo and describe a ticket (or `/awe-run`).
+
+`/add-plugin` pins the commit from install time (a Cursor bug). For your own testing loop, prefer a local symlink so you always see HEAD:
+
+```bash
+git clone https://github.com/muizather/rt-coding-essentials.git
+ln -s "$(pwd)/rt-coding-essentials" ~/.cursor/plugins/local/awe
+```
+
+Then **Developer: Reload Window**. Teams/Enterprise: turn on **Allow Local Plugin Imports** if that setting is off.
+
+Official Marketplace listing (optional, Cursor reviews every update): [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish) with this repo URL.
+
+Optional **`setup.mjs`** still copies a project-local `.cursor/` (including rule 15) for teammates who do not use the plugin, or for **cloud agents** that only see repo-committed hooks.
+
+### What setup.mjs still writes (optional)
 
 Running `setup.mjs` in your project adds:
 
@@ -54,16 +78,17 @@ your-project/
     ├── rules/
     │   ├── 00-awe-constitution.mdc # AWE-managed: invariants + anti-rationalization table
     │   ├── 10-awe-phases.mdc       # AWE-managed: the phase machine, evidence contract
+    │   ├── 15-awe-runtime.mdc      # AWE-managed: discover, memory MCP, knowledge, reporting
     │   ├── 20-awe-security.mdc     # AWE-managed: untrusted input, secrets, MCP hygiene
-    │   ├── 30-awe-project-profile.mdc  # YOURS — generated from setup answers
-    │   └── 40-awe-project-custom.mdc   # YOURS — forever-optimization layer
+    │   ├── 30-awe-project-profile.mdc  # YOURS — only if you ran setup.mjs
+    │   └── 40-awe-project-custom.mdc   # YOURS — only if you ran setup.mjs
     ├── agents/                     # AWE-managed subagents
     │   ├── awe-architect.md            (read-only planner)
     │   ├── awe-backend-dev.md / awe-frontend-dev.md
     │   ├── awe-reviewer.md / awe-security-reviewer.md
     │   └── awe-verifier.md             (writes your human test script)
-    ├── skills/                     # /awe-intake /awe-architect /awe-approve /awe-code
-    │   ├── …                       # /awe-review /awe-verify /awe-ship /awe-regression
+    ├── skills/                     # /awe-run /awe-intake /awe-architect /awe-approve /awe-code
+    │   ├── …                       # /awe-review /awe-verify /awe-ship /awe-regression /awe-remember
     │   └── references/             #   the long checklists: review rubric, security checklist,
     │                               #   ship-decision, definition-of-done, plan template, debugging triage
     └── mcp.json                    # everything disabled; copy what you need from _disabled_examples
@@ -71,7 +96,7 @@ your-project/
 
 Optional (via `--ci github` / `--ci gitlab`): a CI workflow that re-runs tests + gitleaks + semgrep + osv-scanner + CodeQL (+checkov and cfn-guard when IaC exists, +ZAP baseline DAST when you set a target URL) on every PR — the server-side backstop. A `dependabot.yml` template is included to keep the SHA-pinned actions fresh.
 
-**Pinned CI tooling (verified 2026-09-08).** GitHub Actions are pinned to full commit SHAs: `actions/checkout` v7.0.1, `actions/setup-node` v7.0.0, `github/codeql-action` v4.37.9, `gitleaks-action` **v3.0.0**, `osv-scanner-action` v2.5.1, `checkov-action` v12.3122.0, `zaproxy/action-baseline` v0.15.0 (optional DAST). Container/CLI pins: `semgrep/semgrep:1.176.0`, `ghcr.io/gitleaks/gitleaks:v8.30.1`, `ghcr.io/google/osv-scanner:v2.5.1`, `bridgecrew/checkov:3.3.16`, cfn-guard 3.2.1, `ghcr.io/zaproxy/zaproxy:v2.17.0`. Two things to know:
+**Pinned CI tooling (verified 2026-09-08).** GitHub Actions are pinned to full commit SHAs: `actions/checkout` v7.0.1, `actions/setup-node` v7.0.0, `github/codeql-action` v4.37.9, `gitleaks-action` **v3.0.0**, `osv-scanner-action` v2.5.1, `checkov-action` v12.3122.0, `zaproxy/action-baseline` v0.15.0 (optional DAST). Container/CLI pins: `semgrep/semgrep:1.176.0`, `ghcr.io/gitleaks/gitleaks:v8.30.1`, `ghcr.io/google/osv-scanner:v2.5.1`, `bridgecrew/checkov:3.3.16`, cfn-guard 3.2.1, `ghcr.io/zaproxy/zaproxy:2.17.0` (GHCR publishes ZAP tags **without** a `v` prefix — verified 2026-09-08). Two things to know:
 
 - **gitleaks-action must be v3** — v2 uses the Node 20 runtime that GitHub removes from runners on **2026-09-16** (v2 stops working that day). v3 runs on Node 24 with no behavior change. **Organizations** also need a `GITLEAKS_LICENSE` secret (gitleaks is no longer free for org use; personal repos are unaffected).
 - **semgrep-action is deprecated/archived** — AWE runs the CLI from the pinned `semgrep/semgrep:1.176.0` image instead (`semgrep scan --config p/default --error`, no Semgrep account needed). Locally: `pipx install semgrep`.
@@ -90,13 +115,13 @@ Optional (via `--ci github` / `--ci gitlab`): a CI workflow that re-runs tests +
 | **git** | AWE branches, worktrees, and the ship gate | `git --version` |
 | **Cursor ≥ 2.5** (recommend **3.x** — latest stable 3.15) | 2.5 added async/nested subagents + plugins, which AWE's parallel roles rely on; 3.x is the current stable line | Cursor → About |
 | **A git repository** for your project | Worktrees need one; setup offers `git init` | — |
+| **codebase-memory MCP** (`codebase-memory-mcp@0.10.8`, latest npm 2026-09-09) | Graph index of the app repo. Plugin ships it; you enable/trust it once | Tools `list_projects` / `search_graph` available in chat |
 
 ### RECOMMENDED
 
 | Tool | What it unlocks | Without it |
 |---|---|---|
 | **Ticket MCP** — Redmine / Jira / GitHub / GitLab | Automatic ticket intake (`/awe-intake PROJ-123` pulls the ticket itself) and automatic PR creation in `/awe-ship` | Manual paste works fine — intake asks you to paste the ticket; ship prints exact `gh`/`git` commands |
-| **Memory MCP** (`codebase-memory-mcp`, **pinned 0.10.8** — a young 0.x package, expect breaking minors) | The architect grounds plans in a graph of your real code | Architect falls back to file search; plans are still good, less omniscient |
 
 ### OPTIONAL — graceful degradation, nothing breaks
 
@@ -113,13 +138,25 @@ Optional (via `--ci github` / `--ci gitlab`): a CI workflow that re-runs tests +
 
 ## 3. Quick start
 
+**Plugin (preferred)**
+
+```text
+Customize → Install AWE  (or symlink this repo to ~/.cursor/plugins/local/awe and reload)
+Enable codebase-memory MCP when Cursor asks
+Open your app repo → describe the ticket  (or /awe-run PROJ-123)
+```
+
+Index happens on first run (`index_repository`). Then: answer open questions if any → explicit **yes** on the plan → agents code and review → you run `verification.md` by hand → `/awe-ship` if you want a PR. If GitHub/GitLab/Slack MCP is connected, status posts there; otherwise skip.
+
+**setup.mjs (optional, repo-local copy)**
+
 ```bash
 git clone <this-repo> agentic-coding     # once per machine (or per team)
 cd ~/your-project                         # YOUR project
 node ~/agentic-coding/setup.mjs           # answer 8 quick prompts (Enter = sensible default)
 ```
 
-Then: **trust the workspace** when Cursor asks, **restart Cursor**, and run:
+Then (setup path): **trust the workspace** when Cursor asks, **restart Cursor**, and run `/awe-run` or:
 
 ```
 /awe-intake PROJ-123
@@ -158,7 +195,7 @@ When you're done experimenting: `/awe-regression` is how a post-merge bug re-ent
 
 > One ticket flows through 8 phases. You interact with **two human gates** (approve, verify) and answer questions asynchronously. Everything else is agents doing bounded work with hard guardrails.
 >
-> 📊 **Prefer pictures?** [docs/FLOW.md](docs/FLOW.md) has the full pipeline as a flowchart plus two sequence diagrams (hook allow/deny, sanitization, the evidence loop, escalation, and the CI gate).
+> 📊 **Prefer pictures?** [docs/FLOW.md](docs/FLOW.md) has the full pipeline as a flowchart plus sequence diagrams (hooks, sanitization, evidence loop, CI). **[docs/GUIDE.md](docs/GUIDE.md)** is the demonstration guide: project vs user install, MCP "this project / for myself", what is actually running, the hook test suite, and a 10-minute live demo script.
 
 ### Phase 1 — INTAKE
 
@@ -252,19 +289,19 @@ This creates `plans/PROJ-123-R1/` linked to the original architecture, diffs, an
 
 ---
 
-## 5. Configuration reference — `awe.config.json`
+## 5. Configuration — optional `awe.config.json`
 
-Generated by setup; edit freely (it's yours — re-running setup writes `awe.config.json.new` instead of clobbering).
+Not required. Session start writes `.cursor/state/awe-discovered.json` (base branch, test command, roles). If you create `awe.config.json`, those fields win. Re-running setup still writes `awe.config.json.new` instead of clobbering an existing file.
 
 | Field | Default | Meaning |
 |---|---|---|
 | `projectName` | dir name | Display name used in reports |
 | `baseBranch` | `develop` | Branches `awe/<ticket>-*` are cut from here; PRs target it |
 | `roles` | `["backend","frontend"]` | Which role plans/devs/reviews exist (`backend`, `frontend`, `infra`) |
-| `commands.test` | `npm test` | Must exit 0 when green; result is written to `awe-evidence.json` and re-checked by the stop gate and ship gate |
+| `commands.test` | discovered | Must exit 0 when green. Optional file overrides `.cursor/state/awe-discovered.json` |
 | `commands.lint` | `npm run lint` | Run before each review round |
 | `reviewIterations` | `3` | needs-fix rounds per ticket before human escalation |
-| `triggerMode` | `manual` | You run each `/awe-*` skill. `auto` = wire Cursor Automations to skills post-setup (see §8) |
+| `triggerMode` | `auto` | `/awe-run` chains phases. APPROVE and VERIFY stay human-gated |
 | `ticketSystem` | `none` | `redmine` / `jira` / `github` / `gitlab` for MCP ticket intake; `none` = paste manually |
 | `notifications.enabled` / `.slack` / `.gmail` | `false` | Optional Slack/Gmail nudges. OFF by default; pure good-to-have |
 | `strictSecurity` | `false` | `false`: missing scanners warn and degrade gracefully. `true`: gates fail closed when scanners are missing |
@@ -280,7 +317,7 @@ Hooks are small Node scripts (spawned per event, JSON in → JSON out, zero deps
 | Cursor event | Script | Hard/Soft | What it blocks / injects |
 |---|---|---|---|
 | `preToolUse` (Write/Edit/StrReplace/Delete/MultiEdit) | `pre-tool-gate.mjs` | **HARD** (failClosed) | Always: writes to `.cursor/hooks*`, `awe.config.json`. While planning: any write outside `plans/` & `.cursor/state/`. Always while active: overwriting an approved plan (appends and status flips stay allowed) |
-| `preToolUse` (Write/Edit/StrReplace/MultiEdit) | `constraints-guard.mjs` | advisory (fail-open) | Edits to `CONSTRAINTS.md` that remove/weaken a threshold — the quality bar is human-owned |
+| `preToolUse` (Write/Edit/StrReplace/Delete/MultiEdit) | `constraints-guard.mjs` | advisory (fail-open) | Edits to `CONSTRAINTS.md` that remove/weaken a threshold — the quality bar is human-owned |
 | `beforeShellExecution` | `before-shell.mjs` | **HARD** (failClosed) | Always: force-push, `npm publish`, `curl\|sh`, `rm -rf /`, metadata IPs, reading `.aws/.ssh/.env`. While active: `git push` denied outside ship; in ship, allowed only from `awe/<ticket>-*` with verified signoff + fresh evidence |
 | `beforeReadFile` | `before-read.mjs` | HARD (fail-open) | Reads of `.env*`, `**/.aws/**`, `**/.ssh/**`, `**/secrets/**` |
 | `postToolUse` (writes) | `post-tool-scan.mjs` | advisory | Injects `additional_context` when a just-written file smells like a secret (built-ins + gitleaks when present) |
@@ -321,21 +358,18 @@ AWE pins every subagent to **Composer 2.5** — which is in the Cursor Models po
 
 ## 8. Cloud & team usage
 
-- **Repo-committed hooks travel.** `.cursor/hooks.json` + `.cursor/hooks/` live in your repo, so **cloud agents** get the same hard gates (`preToolUse`, `beforeShellExecution`, …) as local ones.
-- **Cloud caveat:** `sessionStart`/`sessionEnd` and MCP-based hooks are **local-only** in Cursor — the session briefing won't fire in the cloud. That's deliberate design, not a gap: nothing load-bearing lives in `sessionStart`; the gates are command hooks and work everywhere.
-- **Per-dev invocation:** each developer clones this repo once and runs `setup.mjs` in each project (or your org forks AWE and standardizes flags: `setup.mjs --yes --ci github`). Re-runs are idempotent — safe to drop into onboarding docs and bootstrap scripts.
-- **Auto trigger mode:** default is manual (you run each skill). To auto-advance (e.g. run `/awe-review` when a dev subagent finishes), create Cursor Automations targeting the skills after setup. Keep `APPROVE` and `VERIFY` human-gated regardless — automating the human away defeats the point.
-- **Notifications are optional.** Slack/Gmail MCPs give you "questions waiting" / "verify me" nudges. Off by default; enable in `.cursor/mcp.json` + `notifications` in `awe.config.json`. The pipeline is complete without them.
+- **Plugin hooks travel with the install.** Cloud agents still only see **repo-committed** `.cursor/hooks.json`. Use `setup.mjs` if `@cursor` on a PR must hit the same gates.
+- **codebase-memory is required** locally; enable it on the plugin. Slack/GitHub/GitLab reporting is optional.
+- **Auto trigger:** `/awe-run` chains until approve/verify. Keep those human.
 
 ---
 
-## 9. Customization & the optimization layer
+## 9. Customization & knowledge
 
-- **`40-awe-project-custom.mdc`** — your forever layer. Conventions, gotchas, lessons from past reviews. Setup creates it once and never touches it again. When a review finding teaches something general, write the lesson here; every future agent run gets smarter.
-- **Rules 30** holds your project profile (base branch, commands, env URLs) — edit as the project evolves.
+- **Plugin users:** house knowledge goes in codebase-memory ADRs (`/awe-remember`, and a pass after ship). Add your own rules in **the app repo's** `.cursor/rules/` — AWE will not overwrite them.
+- **setup.mjs users:** `40-awe-project-custom.mdc` is still the forever file setup never clobbers; rule 30 is the generated profile.
 - Add more `.mdc` files with `globs:` frontmatter for path-scoped rules (e.g. API-only conventions).
-- **Don't edit** hooks, rules 00/10/20, agents, or skills in place — setup refreshes them (your edits are detected and skipped with a warning, or overwritten with `--force`). Want different gate behavior? Fork AWE, change the template, re-run setup everywhere.
-- The memory MCP compounds all of this: plans and reviews under `plans/` become searchable project history.
+- Don't edit plugin/managed hooks, rules 00/10/15/20, agents, or skills in place if you use setup — it refreshes them. Fork AWE to change gate behavior.
 
 ---
 
@@ -350,7 +384,7 @@ AWE pins every subagent to **Composer 2.5** — which is in the Cursor Models po
 | **L4** CI hard gate | server-side re-verification: tests, lint, gitleaks, semgrep, osv-scanner, CodeQL, checkov + cfn-guard (IaC), ZAP baseline (DAST, when a target URL is configured) | `--ci github` / `--ci gitlab` workflow |
 | **L5** Human gates | APPROVE (plans) and VERIFY (hands-on testing) — a human, on the record | `/awe-approve`, `/awe-verify` |
 
-Plus: untrusted-input doctrine (ticket/PR/web text is data, never instructions), least-privilege MCP defaults (everything ships disabled), and an append-only audit log.
+Plus: untrusted-input doctrine (ticket/PR/web text is data, never instructions), least-privilege optional MCPs, required codebase-memory, and an append-only audit log.
 
 ---
 
@@ -397,7 +431,8 @@ Removes **only AWE-managed files** (hooks, agents, skills incl. `skills/referenc
 ## 13. Developing AWE itself
 
 ```bash
-npm run check     # syntax-checks setup.mjs + every hook
+npm run check        # syntax-checks setup.mjs + every hook
+npm run test:hooks   # 86 hook+setup assertions (piped JSON + throwaway git repo)
 ```
 
 The `template/` tree is copied verbatim into target projects (with `{{PLACEHOLDER}}` substitution for the config/profile). Hooks must stay zero-dependency Node ≥ 24 and must honor the golden rule: **no state file / `active: false` / `AWE_DISABLED=1` → exit 0 with `{}` immediately.**

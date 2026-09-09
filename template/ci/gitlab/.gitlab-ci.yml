@@ -20,7 +20,7 @@ variables:
   SEMGREP_IMAGE: semgrep/semgrep:1.176.0
   OSV_IMAGE: ghcr.io/google/osv-scanner:v2.5.1
   CHECKOV_IMAGE: bridgecrew/checkov:3.3.16
-  ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:v2.17.0
+  ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:2.17.0
   # cfn-guard 3.2.1 — repo aws-cloudformation/cloudformation-guard has TAGS ONLY
   # (no Releases entries); the binary is fetched from the pinned tag's asset.
   CFN_GUARD_URL: https://github.com/aws-cloudformation/cloudformation-guard/releases/download/3.2.1/cfn-guard-v3-x86_64-ubuntu-latest.tar.gz

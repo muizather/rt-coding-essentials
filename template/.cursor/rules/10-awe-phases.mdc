@@ -11,11 +11,11 @@ alwaysApply: true
 |---|-------|--------------|-------------|
 | 1 | `intake` | Ticket pulled (or pasted), sanitized into a structured spec, open questions collected in `plans/<ticket>/open-questions.md`. | Answers questions asynchronously by editing `open-questions.md`. |
 | 2 | `architect` | `awe-architect` subagent decomposes the spec into `architecture.md` + one `<role>.plan.md` per role, with a dependency graph. | Reads the plans, corrects direction. |
-| 3 | `approve` | `/awe-approve` validates every open question is answered and every dependency is acknowledged, then flips each plan to `status: approved`. | **HARD GATE.** Nothing codes without this. |
-| 4 | `code` | Per role: `/awe-code <role>` creates worktree + branch `awe/<ticket>-<role>`, writes `handoff.md`, spawns the role dev subagent. Roles proceed **in parallel**. | Watches, answers questions. |
+| 3 | `approve` | `/awe-approve` or `/awe-run` validates questions and dependencies, then flips each plan to `status: approved` after an explicit human **yes**. | **HARD GATE.** Nothing codes without this. |
+| 4 | `code` | Per role: `/awe-code <role>` (or `/awe-run`) creates worktree + branch `awe/<ticket>-<role>`, writes `handoff.md`, spawns the role dev subagent. Roles proceed **in parallel**. | Watches, answers questions. |
 | 5 | `review` | Scanners run; `awe-reviewer` + `awe-security-reviewer` review each role's diff in parallel; findings in `reviews/round-<N>.md`. `needs-fix` → respawn coder; `verified` → next phase. | Intervenes on any finding. |
 | 6 | `verify` | `awe-verifier` writes `verification.md`: numbered human test steps (setup, URLs/commands, expected results, screenshots). | **HARD GATE.** Human tests by hand, then writes `verified: true` + initials + date. |
-| 7 | `ship` | `/awe-ship` pre-flight (signoff + fresh evidence + clean scanners), commit, push `awe/<ticket>-*` branch, open PR via MCP or printed commands. | Merges the PR. |
+| 7 | `ship` | `/awe-ship` pre-flight (signoff + fresh evidence + clean scanners), commit, push `awe/<ticket>-*` branch, open PR via MCP or printed commands. Then a knowledge pass (`manage_adr`) if a lasting decision was made. | Merges the PR. |
 | 8 | post-merge E2E | Combined end-to-end run on the base branch. Regressions re-enter via `/awe-regression` as `plans/<ticket>-R<N>/`. | Confirms production behavior. |
 
 ## Allowed actions per phase (hard-enforced by hooks)
@@ -30,7 +30,7 @@ alwaysApply: true
 
 ## State file — `.cursor/state/awe-state.json`
 
-Only `/awe-*` skills write this file. Shape:
+Only `/awe-*` skills (including `/awe-run`) write this file. Shape:
 
 ```json
 {
@@ -51,7 +51,7 @@ Only `/awe-*` skills write this file. Shape:
 
 ## Evidence contract — `.cursor/state/awe-evidence.json`
 
-Written by the coding agent after running the configured test command (`commands.test` in `awe.config.json`), and refreshed after every fix round:
+Written by the coding agent after running the discovered or configured test command (`commands.test` from `.cursor/state/awe-discovered.json` or optional `awe.config.json`), and refreshed after every fix round:
 
 ```json
 { "testsPassed": true, "command": "npm test", "at": "<ISO-8601>" }
@@ -73,4 +73,8 @@ Written by the human (or by the `/awe-verify` skill confirming the human's edit 
 
 ## Iteration budget semantics
 
-`reviewIterations` (default 3, set at setup) is a **hard budget per ticket**, not a suggestion. While `iteration < reviewIterations`, a `needs-fix` verdict respawns the coder with the findings appended to `handoff.md`. When the budget is reached without `verified`, the pipeline writes `plans/<ticket>/ESCALATION.md` and stops for a human decision. The budget exists so a stuck loop bothers a human instead of burning tokens.
+`reviewIterations` (default 3) is a **hard budget per ticket**, not a suggestion. While `iteration < reviewIterations`, a `needs-fix` verdict respawns the coder with the findings appended to `handoff.md`. When the budget is reached without `verified`, the pipeline writes `plans/<ticket>/ESCALATION.md` and stops for a human decision. The budget exists so a stuck loop bothers a human instead of burning tokens.
+
+## Orchestration
+
+Default is **auto**: `/awe-run` (or a natural-language task that invokes it) chains intake → architect → code → review. APPROVE and VERIFY remain human stops. Individual `/awe-*` skills still work. `awe.config.json` is optional.

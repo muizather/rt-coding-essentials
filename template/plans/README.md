@@ -35,9 +35,11 @@ createdAt: 2026-09-08T12:00:00Z
 ### open-questions.md
 ```markdown
 # Open questions — PROJ-123
-Answer asynchronously: check the box, write the answer, then run /awe-intake --resume PROJ-123.
+Answer asynchronously: check the box, write the answer (one word is fine when the GUESS is right), then run /awe-intake --resume PROJ-123.
 
+## backend
 - [ ] Q1: What should happen when the token expires mid-upload?
+  GUESS: Refresh the token and retry the upload once, then fail with a 401 the user can retry.
   A: 
 ```
 

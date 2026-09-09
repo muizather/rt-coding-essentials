@@ -7,6 +7,7 @@
 //   * Hooks never crash the agent loop. Unexpected errors are handled per-hook
 //     (hard security gates fail closed with an explanatory message; the rest fail open).
 
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -15,6 +16,7 @@ export const STATE_FILE = 'awe-state.json';
 export const EVIDENCE_FILE = 'awe-evidence.json';
 export const SIGNOFF_FILE = 'awe-signoff.json';
 export const AUDIT_FILE = 'audit.log';
+export const DISCOVERED_FILE = 'awe-discovered.json';
 
 export const PHASES = ['intake', 'architect', 'approve', 'code', 'review', 'verify', 'ship', 'done'];
 
@@ -76,14 +78,137 @@ export function isActive(state) {
   return !!state && state.active === true && !isDisabled();
 }
 
-/** Load awe.config.json (user-owned, written by awe-setup). Returns null when absent. */
-export function loadConfig(dir = projectDir()) {
+function gitOut(dir, args) {
   try {
-    const raw = fs.readFileSync(path.join(dir, 'awe.config.json'), 'utf8');
-    return JSON.parse(raw);
+    return execFileSync('git', args, {
+      cwd: dir, timeout: 5000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
+function existsRel(dir, rel) {
+  return fs.existsSync(path.join(dir, rel));
+}
+
+function readJsonFile(abs) {
+  try {
+    const raw = fs.readFileSync(abs, 'utf8');
+    const parsed = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
   }
+}
+
+/** Persist a JSON blob under `.cursor/state/`. */
+export function saveStateJson(name, obj, dir = projectDir()) {
+  const p = path.join(stateDir(dir), name);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  const tmp = p + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2) + '\n');
+  fs.renameSync(tmp, p);
+  return obj;
+}
+
+/** Default branch: origin/HEAD, else main/master/develop, else current branch. */
+export function discoverBaseBranch(dir = projectDir()) {
+  const originHead = gitOut(dir, ['symbolic-ref', 'refs/remotes/origin/HEAD', '--short']);
+  if (originHead) return originHead.replace(/^origin\//, '') || 'main';
+  for (const b of ['main', 'master', 'develop']) {
+    if (gitOut(dir, ['rev-parse', '--verify', `refs/heads/${b}`])) return b;
+  }
+  const current = gitOut(dir, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  return current && current !== 'HEAD' ? current : 'main';
+}
+
+/** Repo's own test command — never assume npm test without checking. */
+export function discoverTestCommand(dir = projectDir()) {
+  const pkg = readJsonFile(path.join(dir, 'package.json'));
+  if (pkg?.scripts?.test) return 'npm test';
+  if (pkg?.scripts?.check) return 'npm run check';
+  if (existsRel(dir, 'pyproject.toml') || existsRel(dir, 'pytest.ini') || existsRel(dir, 'conftest.py')) {
+    return 'pytest';
+  }
+  if (existsRel(dir, 'go.mod')) return 'go test ./...';
+  if (existsRel(dir, 'Cargo.toml')) return 'cargo test';
+  if (existsRel(dir, 'gradlew')) return './gradlew test';
+  if (existsRel(dir, 'mvnw')) return './mvnw test';
+  if (existsRel(dir, 'Makefile')) return 'make test';
+  return 'npm test';
+}
+
+export function discoverLintCommand(dir = projectDir()) {
+  const pkg = readJsonFile(path.join(dir, 'package.json'));
+  if (pkg?.scripts?.lint) return 'npm run lint';
+  return '';
+}
+
+/** backend / frontend from tree + package.json; default backend-only. */
+export function discoverRoles(dir = projectDir()) {
+  const pkg = readJsonFile(path.join(dir, 'package.json'));
+  const deps = { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) };
+  const feDep = ['react', 'vue', 'next', 'svelte', 'nuxt', '@angular/core'].some((d) => deps[d]);
+  const frontendPath = ['src/components', 'src/app', 'app/page.tsx', 'app/page.jsx', 'frontend', 'apps/web', 'web', 'client']
+    .some((p) => existsRel(dir, p));
+  const hasFe = feDep || frontendPath;
+  const hasBe = ['go.mod', 'pyproject.toml', 'Cargo.toml', 'pom.xml', 'build.gradle', 'backend', 'server', 'api', 'src/api', 'apps/api']
+    .some((p) => existsRel(dir, p));
+  if (hasFe && hasBe) return ['backend', 'frontend'];
+  if (hasFe) return ['frontend'];
+  return ['backend'];
+}
+
+function defaultConfig(dir) {
+  return {
+    version: 1,
+    projectName: path.basename(dir),
+    baseBranch: 'main',
+    roles: ['backend'],
+    commands: { test: 'npm test', lint: '' },
+    reviewIterations: 3,
+    triggerMode: 'auto',
+    ticketSystem: 'none',
+    notifications: { enabled: false, slack: false, gmail: false },
+    strictSecurity: false,
+    envUrls: {},
+    deployCommands: {},
+  };
+}
+
+/**
+ * Optional `awe.config.json` overrides discovered values.
+ * Always returns an object (never null) so hooks can run without a repo config file.
+ */
+export function loadConfig(dir = projectDir()) {
+  const base = defaultConfig(dir);
+  const discovered = loadStateJson(DISCOVERED_FILE, dir) || {};
+  const file = readJsonFile(path.join(dir, 'awe.config.json')) || {};
+  const commands = {
+    ...base.commands,
+    ...(discovered.commands && typeof discovered.commands === 'object' ? discovered.commands : {}),
+    ...(file.commands && typeof file.commands === 'object' ? file.commands : {}),
+  };
+  return { ...base, ...discovered, ...file, commands };
+}
+
+/** Write `.cursor/state/awe-discovered.json` once per repo so hooks do not re-probe git on every event. */
+export function ensureDiscoveredConfig(dir = projectDir()) {
+  const existing = loadStateJson(DISCOVERED_FILE, dir);
+  if (existing && typeof existing.baseBranch === 'string' && existing.commands?.test) {
+    return existing;
+  }
+  const cfg = {
+    projectName: path.basename(dir),
+    baseBranch: discoverBaseBranch(dir),
+    roles: discoverRoles(dir),
+    commands: { test: discoverTestCommand(dir), lint: discoverLintCommand(dir) },
+    reviewIterations: 3,
+    triggerMode: 'auto',
+    discoveredAt: new Date().toISOString(),
+  };
+  return saveStateJson(DISCOVERED_FILE, cfg, dir);
 }
 
 /** Read the hook payload Cursor sends on stdin. Tolerates empty/invalid input. */

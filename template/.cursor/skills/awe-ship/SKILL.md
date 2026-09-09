@@ -1,7 +1,6 @@
 ---
 name: awe-ship
 description: Ship phase — pre-flight checks, commit, push the awe/<ticket>-* branch, open a PR (MCP or printed commands). Usage: /awe-ship
-disable-model-invocation: true
 ---
 
 # awe-ship
@@ -28,6 +27,8 @@ disable-model-invocation: true
    - Otherwise print the exact commands for the human, e.g. `gh pr create --base <baseBranch> --head awe/<ticket>-<role> --title "..." --body-file plans/<ticket>/pr-body.md` (write `pr-body.md` for them).
 5. **Multi-role tickets**: open one PR per role and note the merge order from the architecture dependency graph, or combine branches if the human prefers one PR — ask.
 6. **Print post-merge E2E instructions**: after the human merges, pull the base branch, run the combined E2E steps from `verification.md` against the merged result, watch the rollout against the thresholds in `references/ship-decision.md` (error rate > 2× baseline ⇒ roll back; P95 + 50% ⇒ roll back), and apply the **error-budget gate** (budget exhausted ⇒ freeze feature work). File any regression with `/awe-regression <description>`. Then set `phase: done`, `active: false` (a regression re-activates via the regression skill).
+7. **Knowledge pass (required after a real ship).** If codebase-memory `manage_adr` is available: spawn `awe-architect` (still no app code) to record lasting decisions from this ticket (approach, rejected alternatives, new invariants). Skip if the change was trivial. Follow `/awe-remember` if the human also stated extra knowledge.
+8. **Report** per `references/mcp-report.md` if Slack/GitHub/GitLab tools exist (PR/MR URL is enough).
 
 ## Ship Decision (mandatory artifact)
 

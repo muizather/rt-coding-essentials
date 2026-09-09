@@ -3,6 +3,8 @@
 This page shows how a ticket moves through AWE: the phases, the human gates, and the
 hooks that enforce them. It's the visual companion to the **Daily workflow** section of
 the [README](../README.md) and to the `.cursor/rules/10-awe-phases.mdc` rule.
+For install scopes (project vs user / MCP "this project or for myself"), what is
+actually running, and the hook test suite, see [GUIDE.md](GUIDE.md).
 
 - **Skill** — a slash-command playbook you invoke (`/awe-intake`, `/awe-code`, …).
 - **Hook** — a script Cursor runs around a tool call (write, shell, subagent spawn, stop) that can allow/deny it.
@@ -184,7 +186,211 @@ sequenceDiagram
 
 ---
 
+## Sequence: Plugin install — no app-repo copy
+
+The Cursor Plugin is the default. Hooks run from the plugin; the app repo does not need `.cursor/`. Cloud/`@cursor` still only sees **committed** project hooks — use `setup.mjs` if that matters.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev
+    participant Cursor
+    participant Plugin as AWE plugin
+    participant Mem as codebase-memory MCP
+    participant App as app working tree
+
+    Dev->>Cursor: Customize → Install AWE (or ~/.cursor/plugins/local/awe)
+    Cursor->>Plugin: load rules 00/10/15/20, skills, agents, hooks.json
+    Cursor->>Dev: enable codebase-memory MCP (trust once)
+    Dev->>Cursor: open app repo, describe ticket /awe-run
+    Plugin->>App: sessionStart writes .cursor/state/awe-discovered.json
+    Plugin->>Mem: index_repository if needed
+    Plugin->>App: plans/<ticket>/ + state (not required in git)
+    Note over Plugin: chain intake → architect → code → review
+    Plugin-->>Dev: STOP for explicit yes (approve) and hands-on verify
+    opt Slack or GitHub/GitLab MCP connected
+        Plugin->>Dev: status comments / messages
+    end
+    Plugin->>Mem: manage_adr after ship or /awe-remember
+```
+
+---
+
+## Sequence: Setup — what lands where
+
+`setup.mjs` is a one-shot copy into **the application repo**. It never writes
+`~/.cursor`. MCP "this project vs for myself" is a separate Cursor prompt;
+see [GUIDE.md](GUIDE.md) §2.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev
+    participant Setup as setup.mjs
+    participant App as your-project/ (git)
+    participant Home as ~/.cursor/ (untouched)
+    participant Cursor
+
+    Dev->>Setup: cd your-project && node ~/agentic-coding/setup.mjs
+    Setup->>App: .cursor/hooks.json + hooks/*.mjs (managed)
+    Setup->>App: .cursor/rules 00/10/15/20 (managed) + 30/40 (yours)
+    Setup->>App: .cursor/agents + .cursor/skills (managed)
+    Setup->>App: .cursor/mcp.json with mcpServers empty (yours)
+    Setup->>App: awe.config.json + CONSTRAINTS.md (yours)
+    Setup->>App: .gitignore += .cursor/state/
+    Note over Home: no writes
+    Dev->>Cursor: Trust workspace + restart
+    Cursor->>App: load project hooks.json
+```
+
+---
+
+## Sequence: Hook runtime (every agent action)
+
+Nothing daemonizes. Cursor spawns Node per event.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Agent
+    participant Cursor
+    participant Pre as pre-tool-gate.mjs
+    participant Scan as post-tool-scan.mjs
+    participant Shell as before-shell.mjs
+    participant Stop as stop-evidence.mjs
+
+    Agent->>Cursor: Write / Edit / Shell / Task / stop
+    alt write tools
+        Cursor->>Pre: preToolUse JSON
+        Pre-->>Cursor: allow or deny
+        opt allowed write
+            Cursor->>Scan: postToolUse
+            Scan-->>Cursor: {} or additional_context (secret)
+        end
+    else shell
+        Cursor->>Shell: beforeShellExecution
+        Shell-->>Cursor: allow / deny / ask
+    else agent tries to end (code/review)
+        Cursor->>Stop: stop
+        Stop-->>Cursor: {} or followup_message (keep going)
+    end
+```
+
+---
+
+## Sequence: Parallel backend + frontend worktrees
+
+Roles do not share a working tree. The reviewer only judges that role's diff
+against its plan + the contract stub.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor BE as Backend dev
+    actor FE as Frontend dev
+    participant OrchB as Chat A
+    participant OrchF as Chat B
+    participant WT_B as worktree awe/TICKET-backend
+    participant WT_F as worktree awe/TICKET-frontend
+    participant Contract as architecture.md contract
+
+    Note over BE,FE: Both plans approved — /awe-approve already flipped phase=code
+    BE->>OrchB: /awe-code backend
+    FE->>OrchF: /awe-code frontend
+    OrchB->>WT_B: branch awe/TICKET-backend from baseBranch
+    OrchF->>WT_F: branch awe/TICKET-frontend from baseBranch
+    WT_F->>Contract: FE implements UI against stub types / mock API
+    WT_B->>Contract: BE implements real endpoint matching the same shapes
+    Note over WT_B,WT_F: Reviewer of FE cannot fail FE because BE API is missing
+```
+
+---
+
+## Sequence: MCP enablement (project vs user)
+
+AWE does not start MCP servers. You copy a block, then Cursor does.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Human
+    participant Project as repo/.cursor/mcp.json
+    participant User as ~/.cursor/mcp.json
+    participant Cursor
+    participant MCP as MCP server
+
+    Note over Project: setup wrote mcpServers: {}
+    alt This project (recommended for ticket/Git MCP)
+        Human->>Project: copy github/redmine/… from _disabled_examples
+        Human->>Cursor: restart / reload MCP
+        Cursor->>MCP: start stdio or HTTP (OAuth)
+        Note over Project: committed — teammates get the same server list
+    else For myself (personal tokens)
+        Human->>User: Cursor UI "for myself"
+        Cursor->>MCP: start — applies to EVERY workspace on this laptop
+        Note over User: not in git; AWE setup never created this file
+    end
+```
+
+---
+
+## Sequence: CI hard gate (L4) after /awe-ship
+
+Optional `--ci github` / `--ci gitlab`. Runs on the server, not in Cursor.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Ship as /awe-ship
+    participant Hooks as before-shell.mjs
+    participant Remote as origin
+    participant CI as GitHub Actions / GitLab
+    actor Human
+
+    Ship->>Hooks: git push awe/TICKET-backend
+    Hooks-->>Ship: allow (signoff + fresh evidence + awe/* branch)
+    Ship->>Remote: push + open PR
+    Remote->>CI: pull_request
+    CI->>CI: tests + lint (AWE_TEST_CMD / AWE_LINT_CMD)
+    CI->>CI: gitleaks, semgrep scan, osv-scanner, CodeQL
+    opt IaC in repo
+        CI->>CI: checkov + cfn-guard
+    end
+    opt AWE_ZAP_TARGET set
+        CI->>CI: ZAP baseline DAST
+    end
+    CI-->>Human: checks green or red — you merge
+```
+
+---
+
+## Sequence: How the hook test suite works
+
+`npm run test:hooks` (`scripts/awe-hook-tests.sh`) currently **86 passed, 0 failed**.
+It builds a throwaway fixture, pipes Cursor-shaped JSON into each hook, and asserts allow/deny.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant T as awe-hook-tests.sh
+    participant F as /tmp fixture (fake project)
+    participant H as template/.cursor/hooks/*.mjs
+
+    T->>F: git init, copy awe.config.json, write state + plans
+    loop each case
+        T->>F: set phase / evidence / CONSTRAINTS.md as needed
+        T->>H: stdin JSON + CURSOR_PROJECT_DIR=fixture
+        H-->>T: JSON permission / followup_message / additional_context
+        T->>T: PASS if body matches expect (deny / allow / {})
+    end
+    T->>T: setup.mjs --yes / --dry-run / --uninstall on another temp repo
+    T-->>T: print N passed, 0 failed
+```
+
+---
+
 *Enforcement detail: every allow/deny above comes from a real hook in `.cursor/hooks/`
 (`pre-tool-gate`, `before-shell`, `before-read`, `post-tool-scan`, `subagent-gate`,
 `stop-evidence`, `constraints-guard`). When AWE is inactive — no `awe-state.json`, or
-`AWE_DISABLED=1` — every hook exits immediately and interferes with nothing.*
+`AWE_DISABLED=1` — pipeline gates exit immediately. Tamper-protection and baseline
+shell/read safety stay on. Demonstration and install-scope detail: [GUIDE.md](GUIDE.md).*

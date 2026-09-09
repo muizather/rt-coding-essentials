@@ -1,7 +1,6 @@
 ---
 name: awe-review
 description: Review one role's diff — scanners, parallel functional + security review, verdict handling with iteration budget. Usage: /awe-review <role>
-disable-model-invocation: true
 ---
 
 # awe-review
@@ -18,7 +17,7 @@ disable-model-invocation: true
 6. **Act on the verdict** (needs-fix from either reviewer = needs-fix). **A single Critical finding fails the iteration** — severity labels decide what burns a round: Critical/Required → needs-fix; Optional/Nit/FYI never block alone.
    - **needs-fix AND `iteration < reviewIterations`** → increment `roles.<role>.iteration`, update `handoff.md` "Prior review findings" with round-N findings, set phase `code`, and respawn the coder via the `/awe-code <role>` procedure.
    - **needs-fix AND budget reached** → write `plans/<ticket>/ESCALATION.md` (unresolved findings, what was tried across rounds, recommended human decision: more budget / human fix / scope cut), tell the human plainly, STOP. Three rounds unresolved = human escalation, not silent shipping.
-   - **verified from both** → set `roles.<role>.verified: true`, `planStatus` stays `approved`. When **all** roles are verified → set `phase: verify` and tell the human to run `/awe-verify`. Otherwise report which roles remain.
+   - **verified from both** → set `roles.<role>.verified: true`, `planStatus` stays `approved`. When **all** roles are verified → set `phase: verify` and continue to `/awe-verify` when this is `/awe-run`, otherwise tell the human to run `/awe-verify`. Otherwise report which roles remain. Follow `references/mcp-report.md` if Slack/GitHub/GitLab tools exist.
 7. **Always report** the findings table to the human, even on success — the human is the backstop reviewer.
 
 ## Doubt-driven iteration (per-round protocol)

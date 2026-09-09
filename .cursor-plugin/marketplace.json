@@ -1,0 +1,17 @@
+{
+  "name": "rt-coding-essentials",
+  "owner": {
+    "name": "Muiz Athar"
+  },
+  "metadata": {
+    "description": "AWE — Agentic Workflow Essentials for Cursor",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "awe",
+      "source": ".",
+      "description": "Phase-gated multi-agent pipeline with hooks, codebase-memory graph, and optional Slack/GitHub/GitLab reporting."
+    }
+  ]
+}

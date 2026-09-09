@@ -1,7 +1,7 @@
 {
   "name": "agentic-workflow-essentials",
   "version": "0.1.0",
-  "description": "AWE — a phase-gated multi-agent meta-harness for Cursor. Clone, run setup.mjs in your project, get enforced INTAKE → ARCHITECT → APPROVE → CODE → REVIEW → VERIFY → SHIP → POST-MERGE pipelines.",
+  "description": "AWE — Cursor plugin for a phase-gated multi-agent pipeline (intake → ship). Install the plugin; optional setup.mjs still copies files into a repo for cloud agents.",
   "type": "module",
   "bin": {
     "awe-setup": "./setup.mjs"
@@ -11,7 +11,8 @@
   },
   "scripts": {
     "setup": "node setup.mjs",
-    "check": "node --check setup.mjs && for f in template/.cursor/hooks/*.mjs template/.cursor/hooks/lib/*.mjs; do node --check \"$f\"; done"
+    "check": "node --check setup.mjs && for f in template/.cursor/hooks/*.mjs template/.cursor/hooks/lib/*.mjs; do node --check \"$f\"; done && node --input-type=module -e \"import fs from 'node:fs'; for (const p of ['.cursor-plugin/plugin.json','.cursor-plugin/marketplace.json','mcp.json','hooks/hooks.json']) JSON.parse(fs.readFileSync(p,'utf8'));\"",
+    "test:hooks": "bash scripts/awe-hook-tests.sh"
   },
   "keywords": [
     "cursor",

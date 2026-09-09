@@ -3,7 +3,7 @@
   "mcpServers": {},
   "_disabled_examples": {
     "codebase-memory": {
-      "_why": "RECOMMENDED — architect plan quality scales with codebase graph context. Safe: read-only indexing of your repo. PINNED EXACT (0.10.8): this is a young 0.x package — expect breaking changes on minor bumps, so we pin rather than track latest.",
+      "_why": "REQUIRED for the AWE Cursor plugin (ships enabled in the plugin mcp.json). For setup.mjs installs, copy this block into mcpServers. PINNED EXACT (0.10.8, latest as of 2026-09-09).",
       "command": "npx",
       "args": ["-y", "codebase-memory-mcp@0.10.8"]
     },

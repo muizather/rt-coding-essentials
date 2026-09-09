@@ -1,7 +1,6 @@
 ---
 name: awe-intake
-description: Start an AWE ticket — sanitize ticket input into plans/<ticket>/ and activate the pipeline. Usage: /awe-intake <ticket-id|free text> or /awe-intake --resume <ticket-id>
-disable-model-invocation: true
+description: Start an AWE ticket — sanitize ticket input into plans/<ticket>/ and activate the pipeline. Usage: /awe-intake <ticket-id|free text> or /awe-intake --resume <ticket-id>. Invoked automatically by /awe-run.
 ---
 
 # awe-intake
@@ -10,7 +9,8 @@ disable-model-invocation: true
 
 ## Procedure
 
-1. **Read config.** Load `awe.config.json` → note `ticketSystem` and `roles`. Read `.cursor/state/awe-state.json`; if `active: true` for another ticket, STOP and ask the human to finish or abandon it first (one active ticket per repo).
+1. **Read config.** Load optional `awe.config.json` plus `.cursor/state/awe-discovered.json` (baseBranch, roles, test command). If neither exists yet, discover from the repo (origin/HEAD, package.json / pytest / go / cargo). Read `.cursor/state/awe-state.json`; if `active: true` for another ticket, STOP and ask the human to finish or abandon it first (one active ticket per repo).
+1b. **Memory MCP.** If graph tools are missing, STOP and tell the human to enable codebase-memory on the AWE plugin. If this repo is not indexed, `index_repository` with the absolute project path before sanitizing a large ticket against the codebase.
 2. **Acquire the ticket.**
    - If an argument is a ticket id (e.g. `PROJ-123`) and the matching ticket MCP is configured (Redmine/Jira/GitHub/GitLab), fetch title + description + acceptance criteria via MCP.
    - Otherwise ask the human to paste the ticket text.
@@ -49,7 +49,7 @@ createdAt: <ISO-8601>
 }
 ```
 
-7. **Tell the human**: where `open-questions.md` lives, how many questions need answers, and that they can answer at their own pace then run `/awe-intake --resume <ticket-id>` — or run `/awe-architect` now if there are no blocking questions.
+7. **Tell the human**: where `open-questions.md` lives, how many questions need answers, and that they can answer at their own pace then run `/awe-intake --resume <ticket-id>` — or continue with `/awe-architect` / `/awe-run` now if there are no blocking questions. If Slack/GitHub/GitLab MCP tools exist, follow `references/mcp-report.md`.
 
 ## Questioning protocol (async interview)
 

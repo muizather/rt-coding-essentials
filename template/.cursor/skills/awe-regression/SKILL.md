@@ -1,7 +1,6 @@
 ---
 name: awe-regression
 description: Re-enter the pipeline for a post-merge regression — links the original ticket's artifacts and restarts at the architect phase. Usage: /awe-regression <description>
-disable-model-invocation: true
 ---
 
 # awe-regression

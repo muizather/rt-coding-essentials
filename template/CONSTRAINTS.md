@@ -8,7 +8,7 @@
 > (`.cursor/hooks/constraints-guard.mjs`) blocks any agent edit that weakens it.
 >
 > **Rules of engagement**
-> - **Humans own this file.** Agents may *add* or *strengthen* constraints, never *relax* them. To relax one, a human edits it here and records the change in **Exceptions**.
+> - **Humans own this file.** Agents may *add* constraints (new rows/sections that leave every existing line intact). Changing or removing an existing threshold — even to *strengthen* it — is a human edit, recorded in **Exceptions** when it relaxes the bar. (The guard hook is deliberately over-strict: it can't tell strengthening from weakening, so it denies any threshold-line change.)
 > - These are **floors, not ceilings.** Exceeding the bar is always fine.
 > - An agent that hits a constraint it cannot meet **stops and asks** — it does not edit this file to make the problem disappear.
 

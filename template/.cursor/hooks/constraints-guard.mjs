@@ -78,11 +78,13 @@ await runHook(async (input) => {
     return respond({
       permission: 'deny',
       agent_message:
-        `AWE constraints guard: this edit to CONSTRAINTS.md removes or weakens a threshold ` +
-        `("${hit.trim().slice(0, 60)}"). The quality bar is human-owned — an agent must not lower it ` +
-        `to make a failing check pass. If a constraint genuinely needs relaxing, STOP and ask the human ` +
-        `to edit CONSTRAINTS.md themselves (recording reason + owner + expiry in the Exceptions table). ` +
-        `Adding or strengthening constraints is always allowed.`,
+        `AWE constraints guard: this edit to CONSTRAINTS.md removes a threshold-bearing line ` +
+        `("${hit.trim().slice(0, 60)}"). The quality bar is human-owned — an agent must not change it ` +
+        `to make a failing check pass. This guard is deliberately over-strict: it cannot tell weakening ` +
+        `from strengthening, so ANY rewording/removal of a threshold line is denied. If a threshold ` +
+        `genuinely needs to move (in either direction), STOP and ask the human to edit CONSTRAINTS.md ` +
+        `themselves (recording reason + owner + expiry in the Exceptions table). ` +
+        `Pure additions — new rows, new sections — leave every existing line intact and are always allowed.`,
       user_message: 'AWE blocked an agent from weakening CONSTRAINTS.md.',
     });
   }

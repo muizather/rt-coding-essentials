@@ -357,7 +357,7 @@ function managedFiles() {
   for (const f of walkFiles(path.join(TEMPLATE_DIR, '.cursor/hooks'))) {
     files.push([path.join('.cursor/hooks', f), path.join('.cursor/hooks', f)]);
   }
-  for (const f of ['00-awe-constitution.mdc', '10-awe-phases.mdc', '20-awe-security.mdc']) {
+  for (const f of ['00-awe-constitution.mdc', '10-awe-phases.mdc', '15-awe-runtime.mdc', '20-awe-security.mdc']) {
     files.push([path.join('.cursor/rules', f), path.join('.cursor/rules', f)]);
   }
   for (const f of walkFiles(path.join(TEMPLATE_DIR, '.cursor/agents'))) {
@@ -610,7 +610,7 @@ function summary(ops, results, answers, gitignoreAction) {
     kv('CI gates', `installed → ${dests.join(' and ')} ${dim('— adjust AWE_TEST_CMD/AWE_LINT_CMD at the top to match awe.config.json')}`);
   }
   kv('Uninstall', `node ${path.join(AWE_ROOT, 'setup.mjs')} --uninstall ${FLAGS.target ? `--target ${FLAGS.target}` : ''}`.trim() + dim('  (removes only AWE-managed files)'));
-  kv('Docs', `${path.join(AWE_ROOT, 'README.md')}`);
+  kv('Docs', `${path.join(AWE_ROOT, 'README.md')} · ${path.join(AWE_ROOT, 'docs/GUIDE.md')} (install scopes + demo)`);
 
   console.log('\n' + ok(bold('  ✓ AWE is installed.')) + dim('  INTAKE → ARCHITECT → APPROVE → CODE → REVIEW → VERIFY → SHIP → POST-MERGE E2E\n'));
 }

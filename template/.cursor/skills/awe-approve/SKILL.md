@@ -17,14 +17,14 @@ disable-model-invocation: true
 5. **Reject hedged approval.** Adapted from agent-skills `interview-me`'s "explicit yes" discipline (MIT, Addy Osmani 2025 — see NOTICE). **"Looks reasonable", "I guess", "sure, whatever", and silence are NOT approval** — neither are unanswered open questions. Only an explicit **yes** (or explicit answers/waivers on every question) lets you flip a plan. If the human hedges, re-present the specific open decision as a concrete choice and wait. Approving on a hedge is how the wrong thing gets built with a green checkmark.
 6. **Flip the plans.** In each `<role>.plan.md` frontmatter set `status: approved`. ("Approved enough" is not approved — the frontmatter is the source of truth and the subagent-gate hook checks it.)
 7. **Write state**: `phase: code`; each role `planStatus: approved`, `iteration: 0`, `verified: false`.
-8. **Print per-role start commands**, one per role so they can run in parallel:
+8. **Print per-role start commands** only if this is a standalone `/awe-approve` (not `/awe-run`):
 
 ```
 Role backend:  /awe-code backend
 Role frontend: /awe-code frontend
 ```
 
-   Each creates its own worktree + branch `awe/<ticket>-<role>`, so roles never collide.
+   If this is `/awe-run`, continue immediately to `/awe-code` for each role in this chat. Each role gets its own worktree + branch `awe/<ticket>-<role>`.
 
 ## Rationalizations (approve)
 
