@@ -3,19 +3,19 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": "node ./template/.cursor/hooks/session-context.mjs",
+        "command": "node ./scripts/session-context.mjs",
         "timeout": 10
       }
     ],
     "preToolUse": [
       {
-        "command": "node ./template/.cursor/hooks/pre-tool-gate.mjs",
+        "command": "node ./scripts/pre-tool-gate.mjs",
         "matcher": "Write|Edit|StrReplace|Delete|MultiEdit",
         "failClosed": true,
         "timeout": 30
       },
       {
-        "command": "node ./template/.cursor/hooks/constraints-guard.mjs",
+        "command": "node ./scripts/constraints-guard.mjs",
         "matcher": "Write|Edit|StrReplace|Delete|MultiEdit",
         "failClosed": false,
         "timeout": 10
@@ -23,21 +23,21 @@
     ],
     "beforeShellExecution": [
       {
-        "command": "node ./template/.cursor/hooks/before-shell.mjs",
+        "command": "node ./scripts/before-shell.mjs",
         "failClosed": true,
         "timeout": 30
       }
     ],
     "beforeReadFile": [
       {
-        "command": "node ./template/.cursor/hooks/before-read.mjs",
+        "command": "node ./scripts/before-read.mjs",
         "failClosed": false,
         "timeout": 10
       }
     ],
     "postToolUse": [
       {
-        "command": "node ./template/.cursor/hooks/post-tool-scan.mjs",
+        "command": "node ./scripts/post-tool-scan.mjs",
         "matcher": "Write|Edit|StrReplace|MultiEdit",
         "failClosed": false,
         "timeout": 30
@@ -45,14 +45,14 @@
     ],
     "subagentStart": [
       {
-        "command": "node ./template/.cursor/hooks/subagent-gate.mjs",
+        "command": "node ./scripts/subagent-gate.mjs",
         "failClosed": false,
         "timeout": 10
       }
     ],
     "stop": [
       {
-        "command": "node ./template/.cursor/hooks/stop-evidence.mjs",
+        "command": "node ./scripts/stop-evidence.mjs",
         "failClosed": false,
         "timeout": 10,
         "loop_limit": 8

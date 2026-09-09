@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 
 const AWE_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = path.join(AWE_ROOT, 'template');
+const PLUGIN_DIR = path.join(AWE_ROOT, 'awe');
 const AWE_VERSION = '0.1.0';
 
 // Verified 2026-09-08 against nodejs.org: Node 24.x "Krypton" is Active LTS
@@ -351,30 +352,26 @@ function render(content, answers) {
   return content.replace(/\{\{([A-Z_]+)\}\}/g, (m, k) => (k in map ? map[k] : m));
 }
 
-/** Canonical managed-file list (template source → target dest). Shared by install + uninstall. */
+/** Canonical managed-file list: [rootDir, srcRel, destRel]. Shared by install + uninstall. */
 function managedFiles() {
-  const files = [['.cursor/hooks.json', '.cursor/hooks.json']];
-  for (const f of walkFiles(path.join(TEMPLATE_DIR, '.cursor/hooks'))) {
-    files.push([path.join('.cursor/hooks', f), path.join('.cursor/hooks', f)]);
+  const files = [[TEMPLATE_DIR, '.cursor/hooks.json', '.cursor/hooks.json']];
+  for (const f of walkFiles(path.join(PLUGIN_DIR, 'scripts'))) {
+    files.push([PLUGIN_DIR, path.join('scripts', f), path.join('.cursor/hooks', f)]);
   }
   for (const f of ['00-awe-constitution.mdc', '10-awe-phases.mdc', '15-awe-runtime.mdc', '20-awe-security.mdc']) {
-    files.push([path.join('.cursor/rules', f), path.join('.cursor/rules', f)]);
+    files.push([PLUGIN_DIR, path.join('rules', f), path.join('.cursor/rules', f)]);
   }
-  for (const f of walkFiles(path.join(TEMPLATE_DIR, '.cursor/agents'))) {
-    files.push([path.join('.cursor/agents', f), path.join('.cursor/agents', f)]);
+  for (const f of walkFiles(path.join(PLUGIN_DIR, 'agents'))) {
+    files.push([PLUGIN_DIR, path.join('agents', f), path.join('.cursor/agents', f)]);
   }
-  for (const f of walkFiles(path.join(TEMPLATE_DIR, '.cursor/skills'))) {
-    files.push([path.join('.cursor/skills', f), path.join('.cursor/skills', f)]);
+  for (const f of walkFiles(path.join(PLUGIN_DIR, 'skills'))) {
+    files.push([PLUGIN_DIR, path.join('skills', f), path.join('.cursor/skills', f)]);
   }
-  files.push(['plans/README.md', 'plans/README.md']);
-  // NOTICE carries the MIT attribution for the ported agent-skills material; it
-  // must be installed alongside the ported files so their "see NOTICE" headers resolve.
-  files.push(['NOTICE', 'NOTICE']);
-  // CI files are managed only when installed via --ci; include if on disk (uninstall) or requested (install)
-  files.push(['ci/github/awe-gates.yml', '.github/workflows/awe-gates.yml']);
-  files.push(['ci/gitlab/.gitlab-ci.yml', '.gitlab-ci.yml']);
-  // Dependabot keeps the SHA-pinned actions fresh (GitHub CI only).
-  files.push(['.github/dependabot.yml', '.github/dependabot.yml']);
+  files.push([TEMPLATE_DIR, 'plans/README.md', 'plans/README.md']);
+  files.push([TEMPLATE_DIR, 'NOTICE', 'NOTICE']);
+  files.push([TEMPLATE_DIR, 'ci/github/awe-gates.yml', '.github/workflows/awe-gates.yml']);
+  files.push([TEMPLATE_DIR, 'ci/gitlab/.gitlab-ci.yml', '.gitlab-ci.yml']);
+  files.push([TEMPLATE_DIR, '.github/dependabot.yml', '.github/dependabot.yml']);
   return files;
 }
 
@@ -385,8 +382,8 @@ function managedFiles() {
  */
 function planOps(answers) {
   const ops = [];
-  const add = (src, destRel, kind, { renderIt = false } = {}) => {
-    const abs = path.join(TEMPLATE_DIR, src);
+  const addFrom = (root, src, destRel, kind, { renderIt = false } = {}) => {
+    const abs = path.join(root, src);
     const content = fs.readFileSync(abs);
     ops.push({
       destRel,
@@ -395,13 +392,14 @@ function planOps(answers) {
       content: renderIt ? Buffer.from(render(content.toString('utf8'), answers)) : content,
     });
   };
+  const add = (src, destRel, kind, opts) => addFrom(TEMPLATE_DIR, src, destRel, kind, opts);
 
   const ci = (FLAGS.ci || '').toLowerCase();
-  for (const [src, destRel] of managedFiles()) {
+  for (const [root, src, destRel] of managedFiles()) {
     if (src === 'ci/github/awe-gates.yml' && !['github', 'both'].includes(ci)) continue;
     if (src === 'ci/gitlab/.gitlab-ci.yml' && !['gitlab', 'both'].includes(ci)) continue;
     if (src === '.github/dependabot.yml' && !['github', 'both'].includes(ci)) continue;
-    add(src, destRel, 'managed');
+    addFrom(root, src, destRel, 'managed');
   }
 
   // User-owned: generated config + profile, custom rules, MCP template
@@ -522,13 +520,13 @@ function uninstall() {
   // Works even when .cursor/state (and the manifest) was wiped: the managed
   // list comes from the template, and a file is provably AWE's when it matches
   // the manifest hash OR the pristine template bytes.
-  for (const [src, rel] of managedFiles()) {
+  for (const [root, src, rel] of managedFiles()) {
     const abs = path.join(TARGET, rel);
     if (!fs.existsSync(abs)) continue;
     const curHash = sha256(fs.readFileSync(abs));
     const provablyOurs =
       manifest.files[rel] === curHash ||
-      curHash === sha256(fs.readFileSync(path.join(TEMPLATE_DIR, src)));
+      curHash === sha256(fs.readFileSync(path.join(root, src)));
     if (!provablyOurs && !FLAGS.force) {
       kept.push(rel + ' (modified or unknown origin — re-run with --force to remove)');
       continue;

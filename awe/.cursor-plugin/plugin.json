@@ -14,14 +14,5 @@
     "multi-agent",
     "code-review",
     "pipeline"
-  ],
-  "skills": "./template/.cursor/skills",
-  "agents": "./template/.cursor/agents",
-  "rules": [
-    "./template/.cursor/rules/00-awe-constitution.mdc",
-    "./template/.cursor/rules/10-awe-phases.mdc",
-    "./template/.cursor/rules/15-awe-runtime.mdc",
-    "./template/.cursor/rules/20-awe-security.mdc"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }

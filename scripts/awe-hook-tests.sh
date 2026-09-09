@@ -5,7 +5,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HOOKS="$ROOT/template/.cursor/hooks"
+HOOKS="$ROOT/awe/scripts"
 SETUP="$ROOT/setup.mjs"
 FIX="$(mktemp -d /tmp/awe-hook-fix.XXXXXX)"
 SETUP_TGT="$(mktemp -d /tmp/awe-setup-tgt.XXXXXX)"
@@ -126,15 +126,19 @@ while IFS= read -r -d '' f; do
     fail "syntax $(basename "$f")"
   fi
 done < <(find "$ROOT/setup.mjs" "$HOOKS" -name '*.mjs' -print0)
-for j in "$ROOT/package.json" "$ROOT/template/.cursor/hooks.json" "$ROOT/template/awe.config.json" "$ROOT/template/.cursor/mcp.json" "$ROOT/.cursor-plugin/plugin.json" "$ROOT/.cursor-plugin/marketplace.json" "$ROOT/mcp.json" "$ROOT/hooks/hooks.json"; do
+for j in "$ROOT/package.json" "$ROOT/template/.cursor/hooks.json" "$ROOT/template/awe.config.json" "$ROOT/template/.cursor/mcp.json" "$ROOT/.cursor-plugin/marketplace.json" "$ROOT/awe/.cursor-plugin/plugin.json" "$ROOT/awe/mcp.json" "$ROOT/awe/hooks/hooks.json"; do
   if node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$j"; then
     pass "json $(basename "$j")"
   else
     fail "json $(basename "$j")"
   fi
 done
-if grep -q '"name": "awe"' "$ROOT/.cursor-plugin/plugin.json"; then pass "plugin.json name=awe"; else fail "plugin.json name=awe"; fi
-if grep -q 'codebase-memory-mcp@0.10.8' "$ROOT/mcp.json"; then pass "plugin mcp pins codebase-memory 0.10.8"; else fail "plugin mcp missing pin"; fi
+if grep -q '"name": "awe"' "$ROOT/awe/.cursor-plugin/plugin.json" && grep -q '"source": "awe"' "$ROOT/.cursor-plugin/marketplace.json"; then
+  pass "plugin.json name=awe and marketplace source=awe"
+else
+  fail "plugin/marketplace identity"
+fi
+if grep -q 'codebase-memory-mcp@0.10.8' "$ROOT/awe/mcp.json"; then pass "plugin mcp pins codebase-memory 0.10.8"; else fail "plugin mcp missing pin"; fi
 
 echo "== Discover (no awe.config.json) =="
 DISC="$(mktemp -d /tmp/awe-disc.XXXXXX)"
@@ -142,7 +146,7 @@ git -C "$DISC" init -q
 git -C "$DISC" checkout -q -b main 2>/dev/null || git -C "$DISC" symbolic-ref HEAD refs/heads/main
 printf '{"scripts":{"test":"pytest -q"}}\n' > "$DISC/package.json"
 DISC_OUT="$(env CURSOR_PROJECT_DIR="$DISC" node --input-type=module -e "
-import { discoverTestCommand, discoverBaseBranch, discoverRoles, ensureDiscoveredConfig, loadConfig } from '$ROOT/template/.cursor/hooks/lib/state.mjs';
+import { discoverTestCommand, discoverBaseBranch, discoverRoles, ensureDiscoveredConfig, loadConfig } from '$ROOT/awe/scripts/lib/state.mjs';
 const d = process.env.CURSOR_PROJECT_DIR;
 const bits = [discoverTestCommand(d), discoverBaseBranch(d), discoverRoles(d).join(',')];
 ensureDiscoveredConfig(d);

@@ -34,16 +34,17 @@ Repo: **https://github.com/muizather/rt-coding-essentials** (public). Anyone wit
 
 **From Cursor (share this):**
 
-1. In chat: `/add-plugin https://github.com/muizather/rt-coding-essentials`  
-   or **Customize → Plugins → Add from GitHub** and paste the same URL.
-2. Install **awe** (user or this-workspace scope). Enable the **codebase-memory** MCP when Cursor asks.
-3. Reload the window. Open any app repo and describe a ticket (or `/awe-run`).
+Cursor loads a GitHub URL as a **marketplace**. This repo lists one plugin, `awe`, in the `awe/` folder.
 
-`/add-plugin` pins the commit from install time (a Cursor bug). For your own testing loop, prefer a local symlink so you always see HEAD:
+1. If you already added the URL and saw an empty list: **remove that marketplace** (Customize → Plugins → the GitHub source → Remove), then add it again. Cursor pins the first import.
+2. **Customize → Plugins → Add from GitHub** (or `/add-plugin https://github.com/muizather/rt-coding-essentials`).
+3. You should see **awe**. Install it (user or this-workspace). Enable **codebase-memory** when asked.
+4. Reload the window.
+
+For a local always-HEAD install, symlink the **plugin folder** (not the repo root):
 
 ```bash
-git clone https://github.com/muizather/rt-coding-essentials.git
-ln -s "$(pwd)/rt-coding-essentials" ~/.cursor/plugins/local/awe
+ln -s /path/to/rt-coding-essentials/awe ~/.cursor/plugins/local/awe
 ```
 
 Then **Developer: Reload Window**. Teams/Enterprise: turn on **Allow Local Plugin Imports** if that setting is off.

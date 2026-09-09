@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "awe",
-      "source": ".",
+      "source": "awe",
       "description": "Phase-gated multi-agent pipeline with hooks, codebase-memory graph, and optional Slack/GitHub/GitLab reporting."
     }
   ]

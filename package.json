@@ -11,7 +11,7 @@
   },
   "scripts": {
     "setup": "node setup.mjs",
-    "check": "node --check setup.mjs && for f in template/.cursor/hooks/*.mjs template/.cursor/hooks/lib/*.mjs; do node --check \"$f\"; done && node --input-type=module -e \"import fs from 'node:fs'; for (const p of ['.cursor-plugin/plugin.json','.cursor-plugin/marketplace.json','mcp.json','hooks/hooks.json']) JSON.parse(fs.readFileSync(p,'utf8'));\"",
+    "check": "node --check setup.mjs && for f in awe/scripts/*.mjs awe/scripts/lib/*.mjs; do node --check \"$f\"; done && node --input-type=module -e \"import fs from 'node:fs'; for (const p of ['.cursor-plugin/marketplace.json','awe/.cursor-plugin/plugin.json','awe/mcp.json','awe/hooks/hooks.json']) JSON.parse(fs.readFileSync(p,'utf8'));\"",
     "test:hooks": "bash scripts/awe-hook-tests.sh"
   },
   "keywords": [
