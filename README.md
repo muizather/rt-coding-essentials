@@ -34,7 +34,7 @@ Repo: **https://github.com/muizather/rt-coding-essentials** (public). Anyone wit
 
 **From Cursor (share this):**
 
-Cursor loads a GitHub URL as a **marketplace**. This repo lists one plugin, `awe`, in the `awe/` folder.
+Cursor loads a GitHub URL as a **marketplace**. This repo lists one plugin, **RT Coding Essentials** (`rt-coding-essentials/`).
 
 1. If you already added the URL and saw an empty list: **remove that marketplace** (Customize → Plugins → the GitHub source → Remove), then add it again. Cursor pins the first import.
 2. **Customize → Plugins → Add from GitHub** (or `/add-plugin https://github.com/muizather/rt-coding-essentials`).
