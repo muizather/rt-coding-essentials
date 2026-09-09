@@ -199,8 +199,8 @@ sequenceDiagram
     participant Mem as codebase-memory MCP
     participant App as app working tree
 
-    Dev->>Cursor: Customize → Install AWE (or ~/.cursor/plugins/local/awe)
-    Cursor->>Plugin: load rules 00/10/15/20, skills, agents, hooks.json
+    Dev->>Cursor: Customize → Install RT Coding Essentials (or ~/.cursor/plugins/local/rt-coding-essentials)
+    Cursor->>Plugin: load RT Coding Essentials (rules 00/10/15/20, skills, agents, hooks.json)
     Cursor->>Dev: enable codebase-memory MCP (trust once)
     Dev->>Cursor: open app repo, describe ticket /awe-run
     Plugin->>App: sessionStart writes .cursor/state/awe-discovered.json

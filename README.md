@@ -38,13 +38,13 @@ Cursor loads a GitHub URL as a **marketplace**. This repo lists one plugin, `awe
 
 1. If you already added the URL and saw an empty list: **remove that marketplace** (Customize → Plugins → the GitHub source → Remove), then add it again. Cursor pins the first import.
 2. **Customize → Plugins → Add from GitHub** (or `/add-plugin https://github.com/muizather/rt-coding-essentials`).
-3. You should see **awe**. Install it (user or this-workspace). Enable **codebase-memory** when asked.
+3. You should see **RT Coding Essentials**. Install it (user or this-workspace). Enable **codebase-memory** when asked.
 4. Reload the window.
 
 For a local always-HEAD install, symlink the **plugin folder** (not the repo root):
 
 ```bash
-ln -s /path/to/rt-coding-essentials/awe ~/.cursor/plugins/local/awe
+ln -s /path/to/rt-coding-essentials/rt-coding-essentials ~/.cursor/plugins/local/rt-coding-essentials
 ```
 
 Then **Developer: Reload Window**. Teams/Enterprise: turn on **Allow Local Plugin Imports** if that setting is off.
@@ -142,7 +142,7 @@ Optional (via `--ci github` / `--ci gitlab`): a CI workflow that re-runs tests +
 **Plugin (preferred)**
 
 ```text
-Customize → Install AWE  (or symlink this repo to ~/.cursor/plugins/local/awe and reload)
+Customize → Install RT Coding Essentials  (or symlink this repo's `rt-coding-essentials/` folder to `~/.cursor/plugins/local/rt-coding-essentials` and reload)
 Enable codebase-memory MCP when Cursor asks
 Open your app repo → describe the ticket  (or /awe-run PROJ-123)
 ```

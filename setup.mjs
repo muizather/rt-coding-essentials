@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 
 const AWE_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = path.join(AWE_ROOT, 'template');
-const PLUGIN_DIR = path.join(AWE_ROOT, 'awe');
+const PLUGIN_DIR = path.join(AWE_ROOT, 'rt-coding-essentials');
 const AWE_VERSION = '0.1.0';
 
 // Verified 2026-09-08 against nodejs.org: Node 24.x "Krypton" is Active LTS

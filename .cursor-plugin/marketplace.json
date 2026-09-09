@@ -4,14 +4,14 @@
     "name": "Muiz Athar"
   },
   "metadata": {
-    "description": "AWE — Agentic Workflow Essentials for Cursor",
+    "description": "RT Coding Essentials — phase-gated multi-agent workflow for Cursor",
     "version": "0.1.0"
   },
   "plugins": [
     {
-      "name": "awe",
-      "source": "awe",
-      "description": "Phase-gated multi-agent pipeline with hooks, codebase-memory graph, and optional Slack/GitHub/GitLab reporting."
+      "name": "rt-coding-essentials",
+      "source": "rt-coding-essentials",
+      "description": "RT Coding Essentials — phase-gated multi-agent pipeline with hooks, codebase-memory graph, and optional Slack/GitHub/GitLab reporting."
     }
   ]
 }
