@@ -19,14 +19,14 @@ Human gates that still stop you:
 ## 0. Bootstrap (every run)
 
 1. Read `.cursor/state/awe-state.json`. If `active: true` for another ticket, STOP and ask them to finish or abandon it.
-2. **Memory MCP (required).** If `list_projects` / `index_repository` / `search_graph` are missing, STOP with: enable **codebase-memory** on the AWE plugin, reload, retry. Do not plan without it.
-3. `list_projects` + `index_status` for this workspace. If missing or stale → `index_repository` with the absolute `CURSOR_PROJECT_DIR` / workspace path.
+2. **Memory MCP (required).** If `list_projects` / `index_repository` / `search_graph` are missing, STOP: enable **codebase-memory** (one copy only — if a user MCP already works, leave the plugin copy off), reload, retry.
+3. Follow `references/code-graph.md` (git family, derive ignores, sequential `full` index, cross-repo-intelligence). Follow `references/ddd.md` when DDD artifacts are missing on a multi-repo workspace.
 4. Discovered settings are in `.cursor/state/awe-discovered.json` (sessionStart writes it). Honor optional `awe.config.json` if present. Use `baseBranch`, `commands.test`, and `roles` from there. If roles look wrong, ask once, then proceed.
 5. Optional: follow `references/mcp-report.md` when Slack/GitHub/GitLab tools exist.
 
 ## 1. Intake → architect
 
-Follow `/awe-intake` then `/awe-architect` in this chat (spawn `awe-architect`). Architect **must** ground in the graph. If open questions block the plan, write them, report (MCP if available), and **wait** for answers — then resume intake/architect.
+Follow `/awe-intake` then `/awe-architect` in this chat (spawn `awe-architect`). Architect produces **spec + gherkin**, not file lists. If open questions block (ticket or DDD), write them, report, and **wait**.
 
 ## 2. Approve (hard stop)
 

@@ -145,8 +145,35 @@ export function discoverLintCommand(dir = projectDir()) {
   return '';
 }
 
-/** backend / frontend from tree + package.json; default backend-only. */
+/**
+ * Git repo family for this workspace.
+ * One entry if `dir` is itself a git root; otherwise each depth-1 child that has `.git`.
+ */
+export function discoverGitRepos(dir = projectDir()) {
+  if (existsRel(dir, '.git')) {
+    return [{ name: path.basename(dir), path: dir, relative: '.' }];
+  }
+  const out = [];
+  let ents = [];
+  try {
+    ents = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const ent of ents) {
+    if (!ent.isDirectory() || ent.name.startsWith('.')) continue;
+    const child = path.join(dir, ent.name);
+    if (fs.existsSync(path.join(child, '.git'))) {
+      out.push({ name: ent.name, path: child, relative: ent.name });
+    }
+  }
+  return out;
+}
+
+/** backend / frontend from tree + package.json; default backend-only. Multi-git family → repo folder names. */
 export function discoverRoles(dir = projectDir()) {
+  const family = discoverGitRepos(dir);
+  if (family.length > 1) return family.map((r) => r.name);
   const pkg = readJsonFile(path.join(dir, 'package.json'));
   const deps = { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) };
   const feDep = ['react', 'vue', 'next', 'svelte', 'nuxt', '@angular/core'].some((d) => deps[d]);
@@ -197,12 +224,19 @@ export function loadConfig(dir = projectDir()) {
 export function ensureDiscoveredConfig(dir = projectDir()) {
   const existing = loadStateJson(DISCOVERED_FILE, dir);
   if (existing && typeof existing.baseBranch === 'string' && existing.commands?.test) {
+    if (!Array.isArray(existing.gitRepos)) {
+      existing.gitRepos = discoverGitRepos(dir);
+      existing.roles = discoverRoles(dir);
+      return saveStateJson(DISCOVERED_FILE, existing, dir);
+    }
     return existing;
   }
+  const gitRepos = discoverGitRepos(dir);
   const cfg = {
     projectName: path.basename(dir),
     baseBranch: discoverBaseBranch(dir),
     roles: discoverRoles(dir),
+    gitRepos,
     commands: { test: discoverTestCommand(dir), lint: discoverLintCommand(dir) },
     reviewIterations: 3,
     triggerMode: 'auto',

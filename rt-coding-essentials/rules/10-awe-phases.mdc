@@ -10,9 +10,9 @@ alwaysApply: true
 | # | Phase | What happens | Human gate? |
 |---|-------|--------------|-------------|
 | 1 | `intake` | Ticket pulled (or pasted), sanitized into a structured spec, open questions collected in `plans/<ticket>/open-questions.md`. | Answers questions asynchronously by editing `open-questions.md`. |
-| 2 | `architect` | `awe-architect` subagent decomposes the spec into `architecture.md` + one `<role>.plan.md` per role, with a dependency graph. | Reads the plans, corrects direction. |
-| 3 | `approve` | `/awe-approve` or `/awe-run` validates questions and dependencies, then flips each plan to `status: approved` after an explicit human **yes**. | **HARD GATE.** Nothing codes without this. |
-| 4 | `code` | Per role: `/awe-code <role>` (or `/awe-run`) creates worktree + branch `awe/<ticket>-<role>`, writes `handoff.md`, spawns the role dev subagent. Roles proceed **in parallel**. | Watches, answers questions. |
+| 2 | `architect` | Platform architect: DDD + root-grain graph → `architecture.md`, gherkin E2E, per-repo `spec.md` (no file lists). | Reads the spec; answers domain questions in DDD. |
+| 3 | `approve` | `/awe-approve` validates questions, then flips **specs** to `approved` after an explicit human **yes**. | **HARD GATE.** Nothing codes without this. |
+| 4 | `code` | Per assignee: worktree on **that git repo**, coder writes `implementation.plan.md` (files + unit tests) then TDD. | Watches, answers questions. |
 | 5 | `review` | Scanners run; `awe-reviewer` + `awe-security-reviewer` review each role's diff in parallel; findings in `reviews/round-<N>.md`. `needs-fix` → respawn coder; `verified` → next phase. | Intervenes on any finding. |
 | 6 | `verify` | `awe-verifier` writes `verification.md`: numbered human test steps (setup, URLs/commands, expected results, screenshots). | **HARD GATE.** Human tests by hand, then writes `verified: true` + initials + date. |
 | 7 | `ship` | `/awe-ship` pre-flight (signoff + fresh evidence + clean scanners), commit, push `awe/<ticket>-*` branch, open PR via MCP or printed commands. Then a knowledge pass (`manage_adr`) if a lasting decision was made. | Merges the PR. |

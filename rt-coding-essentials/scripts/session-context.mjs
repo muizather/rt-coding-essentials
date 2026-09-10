@@ -28,8 +28,8 @@ await runHook(async (_input) => {
     `Discovered baseBranch=${cfg.baseBranch}, test=\`${cfg.commands?.test || 'npm test'}\`, ` +
     `roles=${(cfg.roles || ['backend']).join(',')}.`;
   const memory =
-    `REQUIRED: codebase-memory MCP must be enabled; index this repo (index_repository) before planning. ` +
-    `If the tools are missing, stop and tell the human to enable codebase-memory on the AWE plugin.`;
+    `REQUIRED: follow code-graph.md (git family, derive ignores, sequential full index). ` +
+    `DDD ships with this plugin (docs/domain-model). Architect writes spec+gherkin; coders write implementation plans+unit tests.`;
   const optionalMcp =
     `Optional: if GitHub/GitLab/Slack MCP tools are available, post status at phase boundaries; if not, skip.`;
 

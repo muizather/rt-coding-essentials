@@ -33,10 +33,16 @@ const TAMPER_PROTECTED = [
 const PLAN_ONLY_PHASES = new Set(['intake', 'architect', 'approve']);
 
 // Paths an agent may always write (planning workspace + AWE runtime state).
-const ALWAYS_WRITABLE = [/^plans\//, /^\.cursor\/state\//];
+const ALWAYS_WRITABLE = [
+  /^plans\//,
+  /^\.cursor\/state\//,
+  /^docs\/domain-model\//,
+  // Child git repo plan folders (platform workspace: magento/plans/, nestjs/plans/, …)
+  /^[^./][^/]*\/plans\//,
+];
 
 // ── Rule 3 helpers: plan-clobber guard ─────────────────────────────────────
-const PLAN_FILE = /^plans\/[^/]+\/[^/]+\.plan\.md$/;
+const PLAN_FILE = /(?:^|\/)plans\/[^/]+\/(?:architecture\.md|spec\.md|[^/]+\.spec\.md|[^/]+\.plan\.md|[^/]*implementation\.plan\.md)$/;
 // Statuses where a plan is still being drafted and may be freely rewritten.
 const PLAN_OPEN_STATUSES = new Set(['draft', 'questions-open']);
 

@@ -17,6 +17,10 @@ import { audit } from './lib/audit.mjs';
 
 const ROLE_OF_AGENT = { 'awe-backend-dev': 'backend', 'awe-frontend-dev': 'frontend' };
 
+function anyRoleApproved(state) {
+  return Object.values(state.roles || {}).some((r) => r?.planStatus === 'approved');
+}
+
 await runHook(async (input) => {
   const dir = projectDir();
   const state = loadState(dir);
@@ -44,12 +48,16 @@ await runHook(async (input) => {
     if (!['intake', 'architect'].includes(phase)) {
       return deny(`architect runs in intake|architect, current phase is ${phase}`);
     }
-  } else if (ROLE_OF_AGENT[name]) {
-    const role = ROLE_OF_AGENT[name];
-    const planStatus = state.roles?.[role]?.planStatus;
-    if (phase !== 'code') return deny(`${role} dev runs in phase=code, current phase is ${phase}`);
-    if (planStatus !== 'approved') {
-      return deny(`${role} plan status is "${planStatus ?? 'missing'}" — must be "approved" (run /awe-approve)`);
+  } else if (ROLE_OF_AGENT[name] || name === 'awe-repo-dev') {
+    if (phase !== 'code') return deny(`${name} runs in phase=code, current phase is ${phase}`);
+    if (ROLE_OF_AGENT[name]) {
+      const role = ROLE_OF_AGENT[name];
+      const planStatus = state.roles?.[role]?.planStatus;
+      if (planStatus !== 'approved') {
+        return deny(`${role} plan status is "${planStatus ?? 'missing'}" — must be "approved" (run /awe-approve)`);
+      }
+    } else if (!anyRoleApproved(state)) {
+      return deny(`awe-repo-dev needs at least one approved spec (run /awe-approve)`);
     }
   } else if (name === 'awe-reviewer' || name === 'awe-security-reviewer') {
     if (!['review', 'code'].includes(phase)) {

@@ -11,20 +11,13 @@ disable-model-invocation: true
 ## Procedure
 
 1. **Gate check.** State must be `active: true`, `phase: approve`. Otherwise stop and report the actual phase.
-2. **Validate open questions.** Every item in `plans/<ticket>/open-questions.md` must be `- [x]` with a non-empty answer line. If any are open: list them, tell the human to answer (or explicitly waive), and STOP — do not approve.
-3. **Validate dependencies.** For each `<role>.plan.md`, every `dependsOn` entry must reference another role's plan that exists and whose contract section in `architecture.md` covers the dependency. List any unacknowledged dependency and STOP.
-4. **Present the approval summary** to the human: one bullet per role (scope in one line, file count, test count), the cross-role contract in two lines, the risk list from `architecture.md`. Ask explicitly: **"Approve these plans? (yes/no)"** — a yes in this conversation counts as the human's decision; record it in `plans/<ticket>/approvals.md` with timestamp.
+2. **Validate open questions.** Every item in `plans/<ticket>/open-questions.md` must be `- [x]` with a non-empty answer. Blocking items in `docs/domain-model/open-questions.md` that this ticket’s specs reference must also be answered or waived. If any are open: list them and STOP.
+3. **Validate specs.** `plans/<ticket>/architecture.md` exists; `plans/<ticket>/e2e/*.feature` exists; every assignee has a `spec.md` (child `<repo>/plans/<ticket>/spec.md` or `plans/<ticket>/<role>.spec.md`). Specs must **not** contain source file lists. Each `dependsOn` must match a contract section in `architecture.md`.
+4. **Present the approval summary**: one bullet per assignee (what they owe, which gherkin), the contract in two lines, risks. Ask **"Approve this spec? (yes/no)"**. Record the yes in `plans/<ticket>/approvals.md`.
 5. **Reject hedged approval.** Adapted from agent-skills `interview-me`'s "explicit yes" discipline (MIT, Addy Osmani 2025 — see NOTICE). **"Looks reasonable", "I guess", "sure, whatever", and silence are NOT approval** — neither are unanswered open questions. Only an explicit **yes** (or explicit answers/waivers on every question) lets you flip a plan. If the human hedges, re-present the specific open decision as a concrete choice and wait. Approving on a hedge is how the wrong thing gets built with a green checkmark.
-6. **Flip the plans.** In each `<role>.plan.md` frontmatter set `status: approved`. ("Approved enough" is not approved — the frontmatter is the source of truth and the subagent-gate hook checks it.)
-7. **Write state**: `phase: code`; each role `planStatus: approved`, `iteration: 0`, `verified: false`.
-8. **Print per-role start commands** only if this is a standalone `/awe-approve` (not `/awe-run`):
-
-```
-Role backend:  /awe-code backend
-Role frontend: /awe-code frontend
-```
-
-   If this is `/awe-run`, continue immediately to `/awe-code` for each role in this chat. Each role gets its own worktree + branch `awe/<ticket>-<role>`.
+6. **Flip the specs.** Set `status: approved` on `architecture.md` and every assignee `spec.md`. Implementation plans do **not** exist yet and are not approved here.
+7. **Write state**: `phase: code`; each assignee `planStatus: approved`, `iteration: 0`, `verified: false`.
+8. **Print start commands** if standalone `/awe-approve`: `/awe-code <assignee>` for each (repo folder name or `backend` / `frontend`). `/awe-run` continues to `/awe-code` immediately. Multi-git: worktree **that** repo, branch `awe/<ticket>-<repo>`.
 
 ## Rationalizations (approve)
 

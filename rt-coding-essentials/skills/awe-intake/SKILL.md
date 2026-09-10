@@ -10,7 +10,7 @@ description: Start an AWE ticket — sanitize ticket input into plans/<ticket>/ 
 ## Procedure
 
 1. **Read config.** Load optional `awe.config.json` plus `.cursor/state/awe-discovered.json` (baseBranch, roles, test command). If neither exists yet, discover from the repo (origin/HEAD, package.json / pytest / go / cargo). Read `.cursor/state/awe-state.json`; if `active: true` for another ticket, STOP and ask the human to finish or abandon it first (one active ticket per repo).
-1b. **Memory MCP.** If graph tools are missing, STOP and tell the human to enable codebase-memory on the AWE plugin. If this repo is not indexed, `index_repository` with the absolute project path before sanitizing a large ticket against the codebase.
+1b. **Memory MCP + graph.** If graph tools are missing, STOP (enable codebase-memory — one copy only). Follow `references/code-graph.md` before sanitizing a large ticket. Do not ask the human what to skip. Domain questions belong in DDD (`references/ddd.md`), not as skip-list interviews.
 2. **Acquire the ticket.**
    - If an argument is a ticket id (e.g. `PROJ-123`) and the matching ticket MCP is configured (Redmine/Jira/GitHub/GitLab), fetch title + description + acceptance criteria via MCP.
    - Otherwise ask the human to paste the ticket text.
@@ -35,7 +35,7 @@ createdAt: <ISO-8601>
 <anything you inferred — humans correct these in open-questions.md>
 ```
 
-5. **Write `plans/<ticket>/open-questions.md`** with every ambiguity as a checkbox the human answers **asynchronously by editing the file** (or via Slack/email if notification MCPs are configured — optional). Follow the **questioning protocol** below: each question carries a hypothesis with a confidence number and a default guess, grouped by role, so the human can answer most with a single word.
+5. **Write questions.** Ticket-only ambiguities → `plans/<ticket>/open-questions.md` (protocol below). **Who owns what / relations / bounded contexts** → `docs/domain-model/open-questions.md` (create via `ddd-domain-model` if needed) and put a pointer in the ticket file. Never ask what to `.cbmignore`.
 
 6. **Write state** `.cursor/state/awe-state.json` (create `.cursor/state/` if needed):
 

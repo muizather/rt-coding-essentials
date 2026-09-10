@@ -2,7 +2,7 @@
   "name": "rt-coding-essentials",
   "displayName": "RT Coding Essentials",
   "description": "Phase-gated multi-agent pipeline (intake → architect → approve → code → review → verify → ship) with hooks, codebase graph, and optional Slack/GitHub/GitLab reporting.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Muiz Athar"
   },

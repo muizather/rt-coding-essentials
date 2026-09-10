@@ -26,7 +26,7 @@ Adapted from agent-skills `doubt-driven-development` (MIT, Addy Osmani 2025 — 
 
 Map the doubt cycle onto each round:
 
-1. **CLAIM** — the coder's implicit claim is "this diff implements the approved plan and its acceptance criteria, correctly and safely." The round names that claim by reviewing against the plan/criteria, not against taste.
+1. **CLAIM** — "this diff implements the approved **spec** and its **gherkin** E2E scenarios, correctly and safely."
 2. **EXTRACT** — the smallest reviewable unit goes to the reviewer: the diff range + the plan + the acceptance criteria (the **contract**). The coder's reasoning and self-assessment are stripped — hand over conclusions and you get back validation of conclusions.
 3. **DOUBT** — the `awe-reviewer` runs with an adversarial brief ("find what is wrong; assume the author is overconfident; do not validate"), plus the deterministic scanners. This is a fresh-context pass, not the coder re-reading its own work.
 4. **RECONCILE** — findings come back as structured hints (`file/line/severity/category/evidence/suggested_fix`), not commands. The coder evaluates each on merit and may rebut *in writing*; classify each finding (contract misread → fix the plan/contract; valid+actionable → fix; valid trade-off → record it; noise → note it). Don't rubber-stamp the reviewer, don't ignore it.

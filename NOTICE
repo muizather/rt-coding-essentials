@@ -37,6 +37,10 @@ also carries a one-line attribution header):
   Other:
   - template/CONSTRAINTS.md        (constraint-driven-development)
 
+DDD platform-modeling skills under `rt-coding-essentials/skills/ddd-*` are
+shipped as-is from Rolustech `awesome-cursor-skills-v2` (ddd-platform-modeling).
+They remain separate skills; AWE routes domain questions to them.
+
 The full text of the MIT License is reproduced below.
 
 -----------------------------------------------------------------------------

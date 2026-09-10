@@ -9,28 +9,32 @@ description: Start coding for one role — creates a worktree + awe/<ticket>-<ro
 
 ## Procedure
 
-1. **Gate check.** State `active: true`, `phase: code`, and `roles.<role>.planStatus == approved`. The subagent-gate hook enforces this too — if either check fails, stop and say what is missing (usually: `/awe-approve` hasn't run).
-2. **Create the worktree + branch** from the discovered or configured base branch (`baseBranch`):
+1. **Gate check.** State `active: true`, `phase: code`, and `roles.<role>.planStatus == approved`.
+2. **Create the worktree + branch** from that assignee’s **git repo** (`gitRepos[].path` when `relative !== '.'`, else workspace root) and `baseBranch`:
 
 ```bash
-git fetch origin <baseBranch>
-git worktree add .worktrees/<ticket>-<role> -b awe/<ticket>-<role> origin/<baseBranch>
+REPO=<git repo path for this assignee>
+git -C "$REPO" fetch origin <baseBranch>
+git -C "$REPO" worktree add "$REPO/.worktrees/<ticket>-<role>" -b awe/<ticket>-<role> origin/<baseBranch>
 ```
 
-   If the branch already exists (a re-run or fix round), reuse it: `git worktree add .worktrees/<ticket>-<role> awe/<ticket>-<role>` or just `cd` into the existing worktree.
-3. **Write `plans/<ticket>/handoff.md`** (shared, append-only across rounds — devs read it first):
+   Reuse the branch on re-runs. Single-repo workspaces: `REPO` is the workspace (same as today).
+3. **Write `plans/<ticket>/handoff.md`** (workspace, append-only):
 
 ```markdown
 # Handoff — <ticket> / <role>
-- Plan: plans/<ticket>/<role>.plan.md (status: approved)
+- Spec: <repo>/plans/<ticket>/spec.md or plans/<ticket>/<role>.spec.md (approved)
 - Contract: plans/<ticket>/architecture.md § Contract
+- Gherkin: plans/<ticket>/e2e/*.feature
+- Implementation plan: written by the coder as <role>.implementation.plan.md (not yet)
 - Iteration: <N> of <reviewIterations>
 ## Expectations
-- Implement only the plan; build cross-role deps against contract stubs.
-- Work test-first (see "TDD" below): a failing test before the code that makes it pass.
-- Run `<test command>`; write .cursor/state/awe-evidence.json when green.
+- Write the implementation plan first (files + unit tests), then TDD.
+- Implement only this assignee’s spec; stubs for the contract.
+- Gherkin is E2E spec; unit tests are yours.
+- Run this repo’s test command; write awe-evidence.json when green.
 ## Prior review findings
-<latest round's findings verbatim, or "none yet">
+<latest round or "none yet">
 ```
 
 ### Test-driven development (the coder's loop)
@@ -55,7 +59,7 @@ that FAILS        to make it         tests still
 
 Tests are proof — "seems right" is not done. Every new behavior lands with a test; the full suite passes before evidence is written.
 
-4. **Spawn the `awe-<role>-dev` subagent** pointed at the worktree path with the handoff path in the brief.
+4. **Spawn** `awe-backend-dev` / `awe-frontend-dev` when the assignee is `backend`/`frontend`; otherwise spawn **`awe-repo-dev`** with the repo slug in the brief and the child worktree path.
 5. **When it returns**, sanity-check: did it report tests green? Does `.cursor/state/awe-evidence.json` exist with a fresh timestamp and `testsPassed: true`? (The stop hook will independently demand this.) Report the dev's end-of-run summary to the human, including "what to manually check".
 6. **Next step:** if this chat is `/awe-run`, continue to `/awe-review <role>` without waiting for a new slash command. Otherwise tell the human: run `/awe-code <other-role>` in another chat to parallelize, or `/awe-review <role>` to review this role now.
 

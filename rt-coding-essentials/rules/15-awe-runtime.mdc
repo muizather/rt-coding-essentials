@@ -19,13 +19,15 @@ If `awe.config.json` exists, its fields win. Hooks read the merged result via `l
 
 ## Codebase-memory MCP (required)
 
-AWE ships `codebase-memory-mcp@0.10.8` in the plugin. The human still has to **enable** it once (Cursor will not silent-trust MCP).
+AWE ships `codebase-memory-mcp@0.10.8` in the plugin. The human still has to **enable** it once (Cursor will not silent-trust MCP). If they already have a user-level codebase-memory server, **leave the plugin copy off** (one daemon).
 
-Before architecture or coding:
+Before architecture or coding, follow `skills/references/code-graph.md`:
 
-1. If graph tools (`list_projects`, `search_graph`, `index_repository`, `manage_adr`, …) are missing → **STOP**. Tell the human: Customize → AWE plugin → enable **codebase-memory**, reload.
-2. `list_projects` / `index_status`. If this repo is not indexed → `index_repository` with the **absolute** project path.
-3. Plan and implement against the graph (`search_graph`, `trace_path`, `get_architecture`, `check_index_coverage`). File grep is fallback only after a coverage miss, not instead of the MCP.
+1. If graph tools are missing → **STOP**. Enable **one** codebase-memory server, reload.
+2. Discover the git family; derive `.cbmignore` (do not interview); sequential `index_repository` `mode: "full"`; then `cross-repo-intelligence` when there are two or more members.
+3. Plan against the graph at the grain the role allows: **architect** = root (projects, routes, CROSS_*); **coder** = that repo’s files. File grep is fallback only after a coverage miss.
+
+This plugin also ships **DDD** (`ddd-domain-model` and companions). The architect **must** read `docs/domain-model/` when it exists, and run DDD Phase 0–1 when a multi-repo workspace has no manifest. See `skills/references/ddd.md`. Domain questions live in DDD `open-questions.md`; ticket questions in `plans/<ticket>/open-questions.md`.
 
 Do not quietly degrade to "search the tree and hope."
 

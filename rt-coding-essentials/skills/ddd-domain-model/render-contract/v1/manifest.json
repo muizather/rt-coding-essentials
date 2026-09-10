@@ -1,0 +1,77 @@
+{
+  "version": "views/v1",
+  "renderer": "scripts/render_domain_views.py",
+  "outputs": [
+    "views/README.md",
+    "views/context-map.md",
+    "views/glossary.md",
+    "views/contexts/{slug}.md"
+  ],
+  "artifacts": {
+    "context-map.json": {
+      "frozen_paths": [
+        "platform_name",
+        "contexts[].slug",
+        "contexts[].name",
+        "contexts[].type",
+        "contexts[].status",
+        "contexts[].confidence",
+        "relationships[].upstream_slug",
+        "relationships[].downstream_slug",
+        "relationships[].pattern",
+        "relationships[].integration.mechanism",
+        "relationships[].status",
+        "relationships[].confidence"
+      ]
+    },
+    "ubiquitous-language.json": {
+      "frozen_paths": [
+        "terms[].term",
+        "terms[].definition",
+        "terms[].context_slugs",
+        "terms[].status",
+        "terms[].confidence"
+      ]
+    },
+    "contexts/{slug}/bounded-context.json": {
+      "frozen_paths": [
+        "slug",
+        "name",
+        "description",
+        "type",
+        "status",
+        "responsibilities"
+      ]
+    },
+    "contexts/{slug}/aggregates.json": {
+      "frozen_paths": [
+        "context_slug",
+        "aggregates[].name",
+        "aggregates[].aggregate_root.name"
+      ]
+    },
+    "contexts/{slug}/domain-events.json": {
+      "frozen_paths": [
+        "context_slug",
+        "events[].name",
+        "events[].past_tense",
+        "events[].emitted_by_aggregate",
+        "events[].status"
+      ],
+      "frozen_when_present": [
+        "integration_events[].name",
+        "integration_events[].source_context",
+        "integration_events[].target_context"
+      ]
+    },
+    "contexts/{slug}/integrations.json": {
+      "frozen_paths": [
+        "context_slug",
+        "inbound[].from_context_slug",
+        "inbound[].mechanism",
+        "outbound[].to_context_slug",
+        "outbound[].mechanism"
+      ]
+    }
+  }
+}

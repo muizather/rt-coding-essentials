@@ -133,10 +133,17 @@ for j in "$ROOT/package.json" "$ROOT/template/.cursor/hooks.json" "$ROOT/templat
     fail "json $(basename "$j")"
   fi
 done
-if grep -q '"displayName": "RT Coding Essentials"' "$ROOT/rt-coding-essentials/.cursor-plugin/plugin.json" && grep -q '"source": "rt-coding-essentials"' "$ROOT/.cursor-plugin/marketplace.json"; then
-  pass "plugin displayName and marketplace source"
+if grep -q 'name: ddd-domain-model' "$ROOT/rt-coding-essentials/skills/ddd-domain-model/SKILL.md" \
+  && grep -q 'name: ddd-use-cases' "$ROOT/rt-coding-essentials/skills/ddd-use-cases/SKILL.md" \
+  && grep -q 'name: awe-repo-dev' "$ROOT/rt-coding-essentials/agents/awe-repo-dev.md"; then
+  pass "plugin ships DDD skills + awe-repo-dev"
 else
-  fail "plugin/marketplace identity"
+  fail "plugin missing DDD or repo-dev"
+fi
+if grep -q 'No file lists' "$ROOT/rt-coding-essentials/agents/awe-architect.md"; then
+  pass "architect forbids file lists"
+else
+  fail "architect still lists files"
 fi
 if grep -q 'codebase-memory-mcp@0.10.8' "$ROOT/rt-coding-essentials/mcp.json"; then pass "plugin mcp pins codebase-memory 0.10.8"; else fail "plugin mcp missing pin"; fi
 
@@ -146,9 +153,9 @@ git -C "$DISC" init -q
 git -C "$DISC" checkout -q -b main 2>/dev/null || git -C "$DISC" symbolic-ref HEAD refs/heads/main
 printf '{"scripts":{"test":"pytest -q"}}\n' > "$DISC/package.json"
 DISC_OUT="$(env CURSOR_PROJECT_DIR="$DISC" node --input-type=module -e "
-import { discoverTestCommand, discoverBaseBranch, discoverRoles, ensureDiscoveredConfig, loadConfig } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+import { discoverTestCommand, discoverBaseBranch, discoverRoles, discoverGitRepos, ensureDiscoveredConfig, loadConfig } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
 const d = process.env.CURSOR_PROJECT_DIR;
-const bits = [discoverTestCommand(d), discoverBaseBranch(d), discoverRoles(d).join(',')];
+const bits = [discoverTestCommand(d), discoverBaseBranch(d), discoverRoles(d).join(','), String(discoverGitRepos(d).length)];
 ensureDiscoveredConfig(d);
 const c = loadConfig(d);
 bits.push(c.commands.test, c.baseBranch);
@@ -156,6 +163,21 @@ process.stdout.write(bits.join('|'));
 ")"
 if [[ "$DISC_OUT" == npm\ test\|main\|* ]]; then pass "discover test+branch from package.json+git ($DISC_OUT)"; else fail "discover output: $DISC_OUT"; fi
 rm -rf "$DISC"
+
+echo "== Discover git family (nested repos) =="
+FAM="$(mktemp -d /tmp/awe-fam.XXXXXX)"
+mkdir -p "$FAM/magento" "$FAM/nestjs"
+git -C "$FAM/magento" init -q
+git -C "$FAM/nestjs" init -q
+FAM_OUT="$(env CURSOR_PROJECT_DIR="$FAM" node --input-type=module -e "
+import { discoverGitRepos, discoverRoles } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+const d = process.env.CURSOR_PROJECT_DIR;
+const repos = discoverGitRepos(d).map((r) => r.name).sort().join(',');
+const roles = discoverRoles(d).slice().sort().join(',');
+process.stdout.write(repos + '|' + roles);
+")"
+if [[ "$FAM_OUT" == magento,nestjs\|magento,nestjs ]]; then pass "discover nested git family ($FAM_OUT)"; else fail "git family: $FAM_OUT"; fi
+rm -rf "$FAM"
 
 echo "== Inactive (no state) =="
 rm -f "$FIX/.cursor/state/awe-state.json"
@@ -200,6 +222,10 @@ expect_deny "intake phase blocks code write" "$out"
 write_state true architect
 out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"app.js","content":"x"}}')"
 expect_deny "architect phase blocks code write" "$out"
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"nestjs/plans/PROJ-1/spec.md","content":"---\nstatus: draft\n---\n"}}')"
+expect_allow "architect phase allows child-repo spec.md" "$out"
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"docs/domain-model/open-questions.md","content":"# q\n"}}')"
+expect_allow "architect phase allows DDD open-questions" "$out"
 write_state true code approved approved
 out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"src/foo.ts","content":"x"}}')"
 expect_allow "code phase allows src write" "$out"
@@ -315,7 +341,12 @@ write_state true code draft approved
 out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-backend-dev"}')"
 expect_deny "backend-dev denied when plan draft" "$out"
 write_state true code approved approved
-out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-architect"}')"
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-repo-dev"}')"
+expect_allow "repo-dev allowed in code+approved" "$out"
+write_state true architect draft draft
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-repo-dev"}')"
+expect_deny "repo-dev denied in architect" "$out"
+write_state true code approved approved
 expect_deny "architect denied in code" "$out"
 write_state true architect approved approved
 out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-architect"}')"

@@ -1,9 +1,11 @@
 <!-- Adapted from agent-skills (https://github.com/addyosmani/agent-skills), Copyright (c) 2025 Addy Osmani, MIT License — see NOTICE. -->
 <!-- Source: skills/planning-and-task-breakdown. The task/plan output contract for the awe-architect agent. -->
 
-# Plan & Task Template (architect output contract)
+# Plan & Task Template (implementation plan — coding agents)
 
-Decompose the spec into small, verifiable tasks with explicit acceptance criteria. Every task should be small enough to implement, test, and verify in a single focused session. The awe-architect emits one `<role>.plan.md` per role; each plan's tasks follow this contract.
+The **platform architect** does **not** use this template. Architect output is `architecture.md` + gherkin E2E + per-repo `spec.md` (see `spec-plan.md`).
+
+**Coding agents** emit `implementation.plan.md` with this task contract (files + **unit tests**). Gherkin under `plans/<ticket>/e2e/` is the feature E2E bar and is not duplicated here.
 
 ## Slice vertically, order by dependency
 
@@ -67,4 +69,4 @@ Before writing a plan that already exists with unchecked tasks: **same work bein
 
 ## Plan frontmatter (AWE)
 
-Each `<role>.plan.md` carries frontmatter the pipeline reads: `status: draft | questions-open | approved` (set to `approved` only by `/awe-approve`), plus the role and ticket. Keep `status` accurate — the subagent-gate and plan-clobber guard both read it.
+Each `implementation.plan.md` (and legacy `<role>.plan.md`) carries frontmatter `status: draft | questions-open | approved`. **Specs** (`spec.md`) are what `/awe-approve` flips. Implementation plans are written in the **code** phase by coding agents and are not the approve gate.
