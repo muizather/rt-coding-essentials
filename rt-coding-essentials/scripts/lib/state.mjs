@@ -78,6 +78,101 @@ export function isActive(state) {
   return !!state && state.active === true && !isDisabled();
 }
 
+/** Phases that may only write plans/ + .cursor/state/ (per ticket, not repo-global). */
+export const PLAN_ONLY_PHASES = new Set(['intake', 'architect', 'approve']);
+/** Phases that write application source / review fixes. */
+export const IMPLEMENT_PHASES = new Set(['code', 'review']);
+/** Phases that occupy an `awe/<ticket>-*` branch (worktree only if another ticket is here). */
+export const BRANCH_HELD_PHASES = new Set(['code', 'review', 'verify', 'ship']);
+
+/**
+ * All in-flight tickets. Prefers `state.tickets`; synthesizes from legacy
+ * `{ ticket, phase, roles }` so older state files keep working.
+ */
+export function listTickets(state) {
+  if (!state || typeof state !== 'object') return {};
+  if (state.tickets && typeof state.tickets === 'object' && !Array.isArray(state.tickets)) {
+    const out = {};
+    for (const [id, t] of Object.entries(state.tickets)) {
+      if (id && t && typeof t === 'object' && !Array.isArray(t)) out[id] = t;
+    }
+    if (Object.keys(out).length) return out;
+  }
+  if (typeof state.ticket === 'string' && state.ticket) {
+    return {
+      [state.ticket]: {
+        phase: state.phase,
+        roles: state.roles && typeof state.roles === 'object' ? state.roles : {},
+        dependsOn: Array.isArray(state.dependsOn) ? state.dependsOn : [],
+        regressionOf: state.regressionOf,
+      },
+    };
+  }
+  return {};
+}
+
+export function getTicketEntry(state, id) {
+  if (!id) return null;
+  return listTickets(state)[id] || null;
+}
+
+/** dependsOn ids that are still in state and not `done`. Missing ids are treated as already finished. */
+export function unmetDependencies(state, ticketId) {
+  const t = getTicketEntry(state, ticketId);
+  const deps = Array.isArray(t?.dependsOn) ? t.dependsOn : [];
+  const all = listTickets(state);
+  return deps.filter((d) => {
+    const other = all[d];
+    if (!other) return false;
+    return other.phase !== 'done';
+  });
+}
+
+/** True when another ticket already holds an implementation branch — then (and only then) use a worktree. */
+export function needsWorktree(state, ticketId) {
+  return Object.entries(listTickets(state)).some(
+    ([id, t]) => id !== ticketId && BRANCH_HELD_PHASES.has(t.phase),
+  );
+}
+
+export function parseAweBranch(branch) {
+  const m = String(branch || '').match(/^awe\/(.+)-(backend|frontend)$/);
+  return m ? { ticket: m[1], role: m[2] } : null;
+}
+
+export function parseAweWorktreeRel(rel) {
+  const m = String(rel || '').match(/^\.worktrees\/(.+)-(backend|frontend)(?:\/|$)/);
+  return m ? { ticket: m[1], role: m[2] } : null;
+}
+
+export function parsePlanTicket(rel) {
+  const m = String(rel || '').match(/(?:^|\/)plans\/([^/]+)\//);
+  return m ? m[1] : null;
+}
+
+export function ticketsInPhases(state, phases) {
+  const set = phases instanceof Set ? phases : new Set(phases);
+  return Object.entries(listTickets(state)).filter(([, t]) => set.has(t.phase));
+}
+
+/**
+ * Which ticket a write belongs to: worktree path, then plans/, then current
+ * `awe/<ticket>-<role>` branch, then the unique ticket in code|review.
+ */
+export function resolveWriteTicket(state, rel, dir = projectDir()) {
+  const wt = parseAweWorktreeRel(rel);
+  if (wt) return { ticket: wt.ticket, role: wt.role, via: 'worktree' };
+  const planId = parsePlanTicket(rel);
+  if (planId) return { ticket: planId, via: 'plans' };
+  const branch = gitOut(dir, ['rev-parse', '--abbrev-ref', 'HEAD'])
+    || gitOut(dir, ['symbolic-ref', '--short', 'HEAD']);
+  const parsed = parseAweBranch(branch);
+  if (parsed) return { ticket: parsed.ticket, role: parsed.role, via: 'branch' };
+  const coding = ticketsInPhases(state, IMPLEMENT_PHASES);
+  if (coding.length === 1) return { ticket: coding[0][0], via: 'unique-coding' };
+  return null;
+}
+
 function gitOut(dir, args) {
   try {
     return execFileSync('git', args, {
@@ -234,9 +329,10 @@ export function inferSourceWriteRole(rel) {
 }
 
 /** Whether a code-phase source write is allowed given implementation artifacts. */
-export function sourceWriteAllowedInCodePhase(dir, state, rel) {
-  const ticket = state?.ticket;
-  const roles = state?.roles || {};
+export function sourceWriteAllowedInCodePhase(dir, state, rel, ticketId) {
+  const ticket = ticketId || state?.ticket;
+  const entry = getTicketEntry(state, ticket);
+  const roles = entry?.roles || state?.roles || {};
   const matched = inferSourceWriteRole(rel);
   let role = matched;
   if (!role || roles[role]?.planStatus !== 'approved') {

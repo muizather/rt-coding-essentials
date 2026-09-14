@@ -4,9 +4,10 @@
 //   1. TAMPER PROTECTION (always on, even when AWE is inactive): agents may never
 //      modify .cursor/hooks.json, .cursor/hooks/**, or awe.config.json. Those are
 //      human-owned. The fix is "ask the human", never "edit the gate".
-//   2. PHASE GATING (only when AWE is active): during intake|architect|approve the
-//      agent may only write under plans/ and .cursor/state/. Code emission is
-//      blocked until plans are approved and the phase flips to `code`.
+//   2. PHASE GATING (only when AWE is active): per ticket. A ticket in
+//      intake|architect|approve may only write plans/ and .cursor/state/.
+//      Another ticket already in code is not frozen. Source writes also
+//      require closed implementation questions and met dependsOn.
 //   3. PLAN-CLOBBER GUARD (only when AWE is active): a plan whose frontmatter
 //      status is approved (or anything past draft/questions-open) is approved
 //      work state. Agents may append to it or flip a status field, but may never
@@ -20,7 +21,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   runHook, respond, loadState, isActive, projectDir, extractFilePath, extractToolContent, relPath,
-  sourceWriteAllowedInCodePhase,
+  sourceWriteAllowedInCodePhase, getTicketEntry, unmetDependencies,
+  resolveWriteTicket, PLAN_ONLY_PHASES, IMPLEMENT_PHASES, ticketsInPhases,
 } from './lib/state.mjs';
 import { audit } from './lib/audit.mjs';
 
@@ -29,9 +31,6 @@ const TAMPER_PROTECTED = [
   { re: /^\.cursor\/hooks\//, what: '.cursor/hooks/**' },
   { re: /^awe\.config\.json$/, what: 'awe.config.json' },
 ];
-
-// Phases where only planning artifacts may be written.
-const PLAN_ONLY_PHASES = new Set(['intake', 'architect', 'approve']);
 
 // Paths an agent may always write (planning workspace + AWE runtime state).
 const ALWAYS_WRITABLE = [
@@ -128,45 +127,79 @@ await runHook(async (input) => {
     });
   }
 
-  // --- Rule 2: plan-only phases ------------------------------------------------
-  if (PLAN_ONLY_PHASES.has(state.phase)) {
-    if (ALWAYS_WRITABLE.some((re) => re.test(rel))) {
-      return respond({ permission: 'allow' });
-    }
-    audit(dir, 'preToolUse', 'deny', `phase=${state.phase}: write outside plans/ blocked`, {
-      path: rel, ticket: state.ticket, phase: state.phase,
+  // --- Rule 2: per-ticket plan-only / code gates --------------------------------
+  // Multiple tickets may be in-flight. A ticket still in intake|architect|approve
+  // must not freeze source writes for a *different* ticket that is already in code.
+  if (ALWAYS_WRITABLE.some((re) => re.test(rel))) {
+    return respond({ permission: 'allow' });
+  }
+
+  const resolved = resolveWriteTicket(state, rel, dir);
+  const ticketId = resolved?.ticket || state.ticket;
+  const entry = getTicketEntry(state, ticketId);
+  const phase = entry?.phase || state.phase;
+
+  if (PLAN_ONLY_PHASES.has(phase)) {
+    audit(dir, 'preToolUse', 'deny', `phase=${phase}: write outside plans/ blocked`, {
+      path: rel, ticket: ticketId, phase,
     });
     return respond({
       permission: 'deny',
       agent_message:
-        `Phase is ${state.phase} — code emission is blocked until plans are approved (phase=code). ` +
-        `Write plans under plans/${state.ticket ?? '<ticket>'}/ only. ` +
+        `Ticket ${ticketId ?? '<ticket>'} is in phase ${phase} — code emission is blocked until its plans are approved (phase=code). ` +
+        `Write plans under plans/${ticketId ?? '<ticket>'}/ only. ` +
+        `Other in-flight tickets are not blocked by this one. ` +
         `If you believe the phase is wrong, tell the human; only skills transition phases.`,
+      user_message: `AWE blocked a source write: ${ticketId ?? 'this ticket'} is still in ${phase}.`,
     });
   }
 
-  // --- code: source writes need an implementation plan + answered questions ----
-  if (state.phase === 'code') {
-    if (ALWAYS_WRITABLE.some((re) => re.test(rel))) {
-      return respond({ permission: 'allow' });
+  if (!entry && ticketsInPhases(state, IMPLEMENT_PHASES).length > 1) {
+    audit(dir, 'preToolUse', 'deny', 'ambiguous ticket for source write', {
+      path: rel, ticket: ticketId, phase,
+    });
+    return respond({
+      permission: 'deny',
+      agent_message:
+        'Multiple plans are in code/review. Write application source in `.worktrees/<ticket>-<role>/` ' +
+        'or on branch awe/<ticket>-<role> so the gate knows which ticket this edit belongs to.',
+      user_message: `AWE blocked a source write: multiple tickets are in code — use a worktree or awe/<ticket>-* branch.`,
+    });
+  }
+
+  if (phase === 'code') {
+    const unmet = unmetDependencies(state, ticketId);
+    if (unmet.length) {
+      audit(dir, 'preToolUse', 'deny', `unmet dependsOn: ${unmet.join(',')}`, {
+        path: rel, ticket: ticketId, phase,
+      });
+      return respond({
+        permission: 'deny',
+        agent_message:
+          `Ticket ${ticketId} depends on ${unmet.join(', ')} which ${unmet.length === 1 ? 'is' : 'are'} not done yet. ` +
+          `You may keep writing plans/${ticketId}/ (implementation plan + questions). ` +
+          `Do not write application source until every dependsOn ticket is phase=done. ` +
+          `Independent work is not blocked — only this ticket's code is.`,
+        user_message:
+          `AWE blocked a source write: ${ticketId} waits on ${unmet.join(', ')} (not done yet).`,
+      });
     }
-    if (!sourceWriteAllowedInCodePhase(dir, state, rel)) {
-      const ticket = state.ticket ?? '<ticket>';
+    if (!sourceWriteAllowedInCodePhase(dir, state, rel, ticketId)) {
       audit(dir, 'preToolUse', 'deny', `phase=code: implementation plan/questions not ready`, {
-        path: rel, ticket, phase: state.phase,
+        path: rel, ticket: ticketId, phase,
       });
       return respond({
         permission: 'deny',
         agent_message:
           `Phase is code but this role's implementation plan is not ready. Write ` +
-          `plans/${ticket}/<role>.implementation.plan.md and ` +
-          `plans/${ticket}/<role>.implementation-questions.md first. ` +
+          `plans/${ticketId}/<role>.implementation.plan.md and ` +
+          `plans/${ticketId}/<role>.implementation-questions.md first. ` +
           `If that questions file has open \`- [ ]\` boxes, STOP for the human — ` +
           `do not write application source until every box is checked. ` +
           `Re-run /awe-code <role> after they answer.`,
         user_message:
-          `AWE blocked a source write: the ${ticket} implementation plan still has ` +
-          `open questions (or is missing). Answer them in plans/${ticket}/ then continue.`,
+          `AWE blocked a source write: the ${ticketId} implementation plan still has ` +
+          `open questions (or is missing). Answer them in plans/${ticketId}/ then continue.`,
       });
     }
   }

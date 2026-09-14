@@ -14,7 +14,7 @@ You need the **real code**, not the high-level spec. Use codebase-memory at file
 
 1. Read `plans/<ticket>/handoff.md` first. Note `mode: plan` vs `mode: implement`.
 2. Read `plans/<ticket>/backend.spec.md` (`status: approved`) and `architecture.md` § Contract + listed gherkin.
-3. Confirm branch `awe/<ticket>-backend`.
+3. Confirm branch `awe/<ticket>-backend` (a `.worktrees/<ticket>-backend` checkout exists only when another plan is already implementing).
 4. Graph: this repo, file grain. Find the modules, handlers, and tests that already own this behavior.
 
 ## Mode: plan (default until questions are closed)

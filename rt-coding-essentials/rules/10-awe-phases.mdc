@@ -12,13 +12,15 @@ alwaysApply: true
 | 1 | `intake` | Ticket pulled (or pasted), sanitized into a structured spec, open questions collected in `plans/<ticket>/open-questions.md`. | Answers questions asynchronously by editing `open-questions.md`. |
 | 2 | `architect` | Architect: root-grain graph → high-level `architecture.md`, gherkin E2E, `backend.spec.md` / `frontend.spec.md` (no file lists). Open questions optional. | Reads the spec; answers architect questions if any. |
 | 3 | `approve` | `/awe-approve` validates any architect questions, then flips **specs** to `approved` after an explicit human **yes**. | **HARD GATE.** Nothing codes without this. |
-| 4 | `code` | Per role (`backend` / `frontend`): worktree, coder writes `implementation.plan.md` + `implementation-questions.md`, **stops if questions are open**, then TDD. Source writes are hook-blocked until questions are checked. | Answers implementation questions. |
+| 4 | `code` | Per role (`backend` / `frontend`): branch `awe/<ticket>-<role>` (worktree **only** if another plan is already implementing), coder writes `implementation.plan.md` + `implementation-questions.md`, **stops if questions are open or `dependsOn` is unmet**, then TDD. Source writes are hook-blocked until questions are checked and dependencies are `done`. | Answers implementation questions. |
 | 5 | `review` | Scanners run; `awe-reviewer` reviews the diff (optional `awe-security-reviewer` when `securityReview: true`); findings in `reviews/round-<N>.md`. `needs-fix` → respawn coder; `verified` → next phase. | Intervenes on any finding. |
 | 6 | `verify` | `awe-verifier` writes `verification.md`: numbered human test steps (setup, URLs/commands, expected results, screenshots). | **HARD GATE.** Human tests by hand, then writes `verified: true` + initials + date. |
 | 7 | `ship` | `/awe-ship` pre-flight (signoff + fresh evidence + clean scanners), commit, push `awe/<ticket>-*` branch, open PR via MCP or printed commands. Then a knowledge pass (`manage_adr`) if a lasting decision was made. | Merges the PR. |
 | 8 | post-merge E2E | Combined end-to-end run on the base branch. Regressions re-enter via `/awe-regression` as `plans/<ticket>-R<N>/`. | Confirms production behavior. |
 
-## Allowed actions per phase (hard-enforced by hooks)
+Phases are **per ticket**. Another ticket in `approve` does not freeze source writes for a ticket that is already in `code`.
+
+## Allowed actions per phase (hard-enforced by hooks, per ticket)
 
 | Phase | Write code | Write `plans/<ticket>/` | `git push` | Spawn dev subagent | Spawn reviewer |
 |---|---|---|---|---|---|
@@ -30,7 +32,7 @@ alwaysApply: true
 
 ## State file — `.cursor/state/awe-state.json`
 
-Only `/awe-*` skills (including `/awe-run`) write this file. Shape:
+Only `/awe-*` skills (including `/awe-run`) write this file. Multiple tickets may be in-flight. Top-level `ticket`/`phase`/`roles` are the **session focus**; `tickets` is the source of truth. Legacy files with only the top-level fields still work (hooks synthesize a one-entry map).
 
 ```json
 {
@@ -41,12 +43,26 @@ Only `/awe-*` skills (including `/awe-run`) write this file. Shape:
     "backend":  { "planStatus": "draft|questions-open|approved", "iteration": 0, "verified": false },
     "frontend": { "planStatus": "draft|questions-open|approved", "iteration": 0, "verified": false }
   },
+  "dependsOn": [],
+  "tickets": {
+    "PROJ-123": {
+      "phase": "code",
+      "roles": { "backend": { "planStatus": "approved", "iteration": 0, "verified": false } },
+      "dependsOn": []
+    },
+    "PROJ-124": {
+      "phase": "architect",
+      "roles": { "frontend": { "planStatus": "draft", "iteration": 0, "verified": false } },
+      "dependsOn": ["PROJ-123"]
+    }
+  },
   "updatedAt": "<ISO-8601>"
 }
 ```
 
-- `active: false` (or a missing file) means **AWE does not interfere at all** — every hook exits immediately.
-- `iteration` counts completed review rounds for that role.
+- `active: false` (or a missing file) means **AWE does not interfere at all** — every hook exits immediately. Shipping one ticket sets `active: false` only when no other ticket is still in-flight.
+- `dependsOn` lists other plan ids. Intake is never blocked. **Application source** is denied until every listed ticket is `phase: done` (or has left state).
+- `iteration` counts completed review rounds for that role on that ticket.
 - `verified` flips true only on a reviewer's `verified` verdict.
 
 ## Evidence contract — `.cursor/state/awe-evidence.json`

@@ -11,7 +11,7 @@ The architect knows the system and the ticket. Coding agents know the files. Do 
 
 ## Procedure
 
-1. **Gate check.** `.cursor/state/awe-state.json` must be `active: true` with `phase: architect`.
+1. **Gate check.** `.cursor/state/awe-state.json` must be `active: true`. This ticket is in `phase: architect` (in `tickets.<id>` or legacy top-level). Other tickets may be in any phase — do not wait on them.
 2. **Graph.** Follow `references/code-graph.md` (derive ignores, sequential `full` index). Root grain only for the architect brief.
 3. **Existing domain docs.** If `docs/domain-model/` exists, read manifest + context-map for ownership language. Do **not** run DDD reverse-engineering. Coders go deep.
 4. **Ingest answers.** Fold any answered ticket questions into `intake.md`. Architect questions are optional — if none were written, that is fine.
@@ -20,7 +20,7 @@ The architect knows the system and the ticket. Coding agents know the files. Do 
    - `plans/<ticket>/architecture.md` with contract, **no source file paths**.
    - `plans/<ticket>/e2e/*.feature` exists (at least one scenario).
    - Every in-scope role has `plans/<ticket>/<role>.spec.md` with no file lists. Roles are only `backend` and `frontend`.
-7. **Write state**: `phase: approve`; each role `planStatus` matches its spec frontmatter (`draft` | `questions-open`). Missing questions file / empty questions → `draft`.
+7. **Write state**: this ticket `phase: approve`; each role `planStatus` matches its spec frontmatter (`draft` | `questions-open`). Missing questions file / empty questions → `draft`. Update `tickets.<id>` **and** session focus (`ticket`/`phase`/`roles`). Leave other tickets unchanged.
 8. **Tell the human**: 3–5 bullets, path to gherkin, whether any architect questions exist (zero is OK), then `/awe-approve` (or answer questions first).
 
 ## Never clobber

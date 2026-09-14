@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { runHook, respond, loadState, isActive, projectDir, ensureDiscoveredConfig, loadConfig } from './lib/state.mjs';
+import { runHook, respond, loadState, isActive, projectDir, ensureDiscoveredConfig, loadConfig, listTickets, unmetDependencies } from './lib/state.mjs';
 
 function countOpenQuestions(dir, ticket) {
   try {
@@ -37,22 +37,32 @@ await runHook(async (_input) => {
     return respond({
       additional_context:
         `AWE ready — no active ticket; hooks will not block normal work. ${discovered} ` +
-        `${memory} Start with /awe-run or by describing a ticket. ${optionalMcp}`,
+        `${memory} Start with /awe-run or by describing a ticket. Multiple plans may run at once; ` +
+        `a new intake never waits on an unrelated in-flight plan. ${optionalMcp}`,
     });
   }
 
-  const roles = Object.entries(state.roles || {})
-    .map(([role, r]) => `${role}=${r?.planStatus ?? '?'}(iter ${r?.iteration ?? 0})`)
-    .join(', ') || 'none';
-  const openQ = state.ticket ? countOpenQuestions(dir, state.ticket) : 0;
+  const tickets = listTickets(state);
+  const lines = Object.entries(tickets).map(([id, t]) => {
+    const roles = Object.entries(t.roles || {})
+      .map(([role, r]) => `${role}=${r?.planStatus ?? '?'}(iter ${r?.iteration ?? 0})`)
+      .join(', ') || 'none';
+    const openQ = countOpenQuestions(dir, id);
+    const deps = Array.isArray(t.dependsOn) && t.dependsOn.length ? t.dependsOn.join(', ') : 'none';
+    const unmet = unmetDependencies(state, id);
+    const wait = unmet.length ? ` CODE BLOCKED on ${unmet.join(', ')}` : '';
+    return `${id}: phase=${t.phase}, roles=${roles}, dependsOn=${deps}, openQ=${openQ}${wait}`;
+  });
+  const focus = state.ticket && tickets[state.ticket] ? state.ticket : (Object.keys(tickets)[0] || '');
 
   return respond({
     additional_context:
-      `AWE ACTIVE — ticket ${state.ticket}, phase ${state.phase}. ` +
-      `Role plan statuses: ${roles}. ` +
-      `Open questions: ${openQ} in plans/${state.ticket}/open-questions.md. ` +
+      `AWE ACTIVE — ${Object.keys(tickets).length} in-flight plan(s). Focus ${focus || '(none)'}. ` +
+      `${lines.join(' | ')}. ` +
       `${discovered} ${memory} ` +
-      `/awe-run may chain phases; APPROVE and VERIFY still need an explicit human yes. ` +
-      `Code emission is blocked until phase=code.`,
+      `New /awe-run intake is never blocked by another ticket. Record dependsOn when work shares a surface; ` +
+      `implementation is blocked until those tickets are phase=done. ` +
+      `Worktrees only when two+ plans occupy code|review|verify|ship at once. ` +
+      `/awe-run may chain phases; APPROVE and VERIFY still need an explicit human yes.`,
   });
 });

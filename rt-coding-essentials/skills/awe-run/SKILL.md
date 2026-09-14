@@ -18,7 +18,10 @@ Human gates that still stop you:
 
 ## 0. Bootstrap (every run)
 
-1. Read `.cursor/state/awe-state.json`. If `active: true` for another ticket, STOP and ask them to finish or abandon it.
+1. Read `.cursor/state/awe-state.json`. **Multiple in-flight tickets are allowed.** Do **not** stop because another ticket is active. If this ask continues an existing ticket (same id, or the human said resume/fold), keep that ticket. Otherwise start a new `plans/<id>/`.
+   - List in-flight tickets (id, phase, `dependsOn`).
+   - If this work **depends** on an in-flight plan (same feature/surface/files, or it cannot ship until that plan is done), record `dependsOn: ["<other>"]` on the new ticket. Independent → `dependsOn: []`. Tell the human what you recorded; they may edit it.
+   - **Never block intake or architect** for a dependency. Only **implementation** waits (see `/awe-code`).
 2. **Memory MCP (required).** If `list_projects` / `index_repository` / `search_graph` are missing, STOP: enable **codebase-memory** (one copy only — if a user MCP already works, leave the plugin copy off), reload, retry.
 3. Follow `references/code-graph.md` (git family, derive ignores, sequential `full` index). Architect stays high-level; coding agents go file-grain.
 4. Discovered settings are in `.cursor/state/awe-discovered.json` (sessionStart writes it). Honor optional `awe.config.json` if present. Use `baseBranch`, `commands.test`, and `roles` (`backend` and/or `frontend` only) from there. If roles look wrong, ask once, then proceed.
@@ -34,7 +37,7 @@ Follow `/awe-approve` validation. Ask **"Approve these plans? (yes/no)"**. Only 
 
 ## 3. Code → review loop
 
-For each discovered role (`backend` / `frontend` only), follow `/awe-code <role>`. That skill **stops** if the coder left implementation questions open — wait for the human, then re-run `/awe-code`. Do not start `/awe-review` until implement mode has evidence. Then `/awe-review <role>` including the needs-fix respawn loop up to `reviewIterations`. Spawn `awe-security-reviewer` only when `securityReview` is true.
+For each discovered role (`backend` / `frontend` only), follow `/awe-code <role>` **for this ticket**. If `dependsOn` is unmet, that skill stops before implement — keep planning other independent tickets. Do not start `/awe-review` until implement mode has evidence. Then `/awe-review <role>` including the needs-fix respawn loop up to `reviewIterations`. Spawn `awe-security-reviewer` only when `securityReview` is true.
 
 When every role is reviewer-`verified`, set `phase: verify`.
 

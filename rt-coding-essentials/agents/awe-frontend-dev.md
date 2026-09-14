@@ -14,7 +14,7 @@ You need the **real UI code**, not the high-level spec. Use codebase-memory at f
 
 1. Read `plans/<ticket>/handoff.md` first. Note `mode: plan` vs `mode: implement`.
 2. Read `plans/<ticket>/frontend.spec.md` (`status: approved`) and `architecture.md` § Contract + listed gherkin.
-3. Confirm branch `awe/<ticket>-frontend`.
+3. Confirm branch `awe/<ticket>-frontend` (a `.worktrees/<ticket>-frontend` checkout exists only when another plan is already implementing).
 4. Graph: this repo, file grain. Find the routes, components, and tests that already own this behavior.
 
 ## Mode: plan (default until questions are closed)

@@ -7,7 +7,7 @@
  │ INTAKE  │ → │ ARCHITECT  │ → │ APPROVE  │ → │  CODE  │ → │ REVIEW  │ → │ VERIFY │ → │ SHIP  │ → │ POST-MERGE   │
  │ ticket  │   │ role plans │   │ ▣ HUMAN  │   │ per-   │   │ 3 iters │   │▣ HUMAN │   │ PR +  │   │ E2E          │
  │ sanitize│   │ + contract │   │ gate     │   │ role   │   │ then ▣  │   │ hands- │   │ push  │   │ regressions  │
- │         │   │            │   │          │   │ worktree│  │ escalate│   │ on test│   │       │   │ re-enter ▶───┼──┐
+ │         │   │            │   │          │   │ role    │  │ escalate│   │ on test│   │       │   │ re-enter ▶───┼──┐
  └─────────┘   └────────────┘   └──────────┘   └────────┘   └─────────┘   └────────┘   └───────┘   └──────────────┘  │
                                                                                                                     │
    ▣ = human gate                          enforced by Cursor hooks (HARD) + rules (SOFT)         ◀── /awe-regression ┘
@@ -15,7 +15,7 @@
 
 - **Hard enforcement** — Cursor hooks physically block writes during planning phases, block pushes before signoff, and force agents to continue when "done" has no evidence.
 - **Soft enforcement** — always-on rules: a constitution with an anti-rationalization table that talks agents out of their favorite excuses.
-- **Parallel by design** — backend and frontend work simultaneously in separate git worktrees, glued by an explicit contract.
+- **Parallel by design** — backend and frontend of one ticket share a contract; **multiple plans** may be in-flight. A new plan is never blocked by another ticket. Implementation waits only on `dependsOn`. Git worktrees appear only when two+ plans would conflict on the same checkout.
 - **Zero dependencies** — everything is plain Node.js built-ins and markdown. Nothing to audit, nothing to rot.
 
 **30-second vocabulary** (five words AWE uses everywhere):
@@ -24,7 +24,7 @@
 - **Skill** — a playbook (`/awe-run`, `/awe-intake`, …). `/awe-run` chains phases; hooks still block skipped gates.
 - **Subagent** — a fresh-context agent the main chat spawns for one bounded job (architect, role dev, reviewer, verifier). Isolation is the point: a reviewer that didn't write the code reviews it honestly.
 - **MCP** — Model Context Protocol. **codebase-memory** is required (enable it once on the plugin). GitHub / GitLab / Slack are optional — if connected, agents report status; if not, the pipeline still runs. See [docs/GUIDE.md](docs/GUIDE.md).
-- **Worktree** — a second checkout of your repo in a sibling folder on its own branch. Backend and frontend code in parallel worktrees without ever colliding.
+- **Worktree** — a second checkout of the same repo on its own branch. AWE creates one only when two plans are implementing at once (so they do not clobber each other). A single implementing ticket uses the main working tree.
 
 ---
 
@@ -184,7 +184,7 @@ Try the whole pipeline on a demo ticket. Nothing here needs a ticket system — 
 2. **Answer questions** by editing `open-questions.md` — check a box, write a word. Then `/awe-intake --resume DEMO-1` (or skip ahead if nothing was blocking).
 3. **Architect.** `/awe-architect` — the read-only architect subagent writes `architecture.md` and per-role `*.plan.md` files with sized, testable tasks.
 4. **Approve** ▣ *you*. `/awe-approve` — read the one-screen summary, say **yes**. Only now can any code be written (before this, the write-gate hook physically denies code edits — try it: ask the agent to "just start coding" and watch it get blocked).
-5. **Code.** `/awe-code backend` — a dev subagent implements the plan test-first on branch `awe/DEMO-1-backend` in its own worktree, then writes fresh test evidence.
+5. **Code.** `/awe-code backend` — a dev subagent implements the plan test-first on branch `awe/DEMO-1-backend` (a worktree only if another plan is already implementing), then writes fresh test evidence.
 6. **Review.** `/awe-review backend` — two reviewers (functional + security) attack the diff; fixes loop automatically, up to 3 rounds before it escalates to you.
 7. **Verify** ▣ *you*. `/awe-verify` — run the numbered steps in `plans/DEMO-1/verification.md` by hand, flip `verified: true` with your initials.
 8. **Ship.** `/awe-ship` — pre-flight checks, push, and either a PR via MCP or the exact `gh pr create` command printed for you. You merge.
@@ -237,7 +237,7 @@ AWE verifies every open question is answered and every cross-role dependency ack
 /awe-code frontend     # in another chat, in parallel
 ```
 
-Each role gets its own **git worktree** and branch `awe/PROJ-123-<role>` cut from your base branch, plus a `handoff.md` brief. The role dev first writes a **low-level** `implementation.plan.md` (files, unit tests, today's advisory search for any package it will use) and `implementation-questions.md`. Open implementation questions **block source writes** (hook) until you answer them. Then it implements only its approved spec, builds cross-role needs against contract stubs, writes the named unit tests, runs your test command, and writes fresh evidence to `.cursor/state/awe-evidence.json`. Try to end the session without that evidence and the `stop` hook sends the agent back to work.
+Each role implements on branch `awe/PROJ-123-<role>` cut from your base branch, plus a `handoff.md` brief. A **git worktree** (`.worktrees/<ticket>-<role>`) is created only when another in-flight plan is already in `code|review|verify|ship` — otherwise the main checkout is used. The role dev first writes a **low-level** `implementation.plan.md` (files, unit tests, today's advisory search for any package it will use) and `implementation-questions.md`. Open implementation questions **block source writes** (hook) until you answer them. If this ticket's `dependsOn` lists a plan that is not `done` yet, **implementation** is blocked (intake and architect are not). Then it implements only its approved spec, builds cross-role needs against contract stubs, writes the named unit tests, runs your test command, and writes fresh evidence to `.cursor/state/awe-evidence.json`. Try to end the session without that evidence and the `stop` hook sends the agent back to work.
 
 ### Phase 5 — REVIEW
 
@@ -399,7 +399,7 @@ Quick answers first; details below.
 |---|---|
 | Hooks not firing at all | **Trust the workspace** (Cursor prompts on open) and **restart Cursor** after setup. Verify in `Cursor Settings → Hooks`; watch `.cursor/state/audit.log` for decisions |
 | AWE is in the way right now | `AWE_DISABLED=1` in the environment + restart Cursor — every hook short-circuits to allow. Unset to re-enable |
-| "Phase is X — code emission is blocked" | Working as intended: finish/approve plans (`/awe-approve`) or abandon the ticket (set `active: false` in `.cursor/state/awe-state.json`) |
+| "Phase is X — code emission is blocked" | That **ticket** is still in a planning phase. Approve it (`/awe-approve`) or implement a *different* in-flight ticket that is already in `code`. Abandon one ticket by setting its entry to `phase: done` (set `active: false` only when none remain). |
 | Agent keeps being sent back for test evidence | The stop gate working: run the real test command; evidence must be < 2 h old. Wrong command? Fix `commands.test` in `awe.config.json` |
 | Scanner warnings (gitleaks/semgrep/osv-scanner missing) | Install them, or accept built-in coverage — CI still runs the full set. `strictSecurity: true` flips warnings to hard failures |
 | AWE blocked a legitimate action | Read the deny message — it names the rule and the escape (usually: "ask the human"). Every decision is in `.cursor/state/audit.log` |

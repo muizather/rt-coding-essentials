@@ -16,7 +16,7 @@
 
 import {
   runHook, respond, loadState, loadStateJson, loadConfig, isActive,
-  projectDir, minutesSince, EVIDENCE_FILE,
+  projectDir, minutesSince, EVIDENCE_FILE, listTickets, IMPLEMENT_PHASES,
 } from './lib/state.mjs';
 import { audit } from './lib/audit.mjs';
 
@@ -26,25 +26,28 @@ await runHook(async (input) => {
   const dir = projectDir();
   const state = loadState(dir);
   if (!isActive(state)) return respond({});
-  if (!['code', 'review'].includes(state.phase)) return respond({});
+  const tickets = listTickets(state);
+  const impl = Object.entries(tickets).filter(([, t]) => IMPLEMENT_PHASES.has(t.phase));
+  if (!impl.length) return respond({});
 
   const config = loadConfig(dir) || {};
   const testCommand = config.commands?.test || 'npm test';
   const budget = Number.isInteger(config.reviewIterations) ? config.reviewIterations : 3;
 
-  // --- Review iteration budget ------------------------------------------------
-  if (state.phase === 'review') {
-    const roles = Object.values(state.roles || {});
+  // --- Review iteration budget (per ticket) -----------------------------------
+  for (const [id, t] of impl) {
+    if (t.phase !== 'review') continue;
+    const roles = Object.values(t.roles || {});
     const exhausted = roles.length > 0 && roles.every((r) => (r?.iteration ?? 0) >= budget);
     if (exhausted) {
       audit(dir, 'stop', 'escalate', `review budget (${budget}) exhausted for all roles`, {
-        ticket: state.ticket,
+        ticket: id,
       });
       return respond({
         followup_message:
-          `REVIEW BUDGET EXHAUSTED: all roles have used ${budget} review iteration(s) without a ` +
+          `REVIEW BUDGET EXHAUSTED: all roles on ${id} have used ${budget} review iteration(s) without a ` +
           `"verified" verdict. Three rounds unresolved = human escalation, not silent shipping. ` +
-          `Do NOT spawn more review or code rounds. Write plans/${state.ticket}/ESCALATION.md ` +
+          `Do NOT spawn more review or code rounds. Write plans/${id}/ESCALATION.md ` +
           `(unresolved findings, what was tried, recommended human decision) and stop for the human.`,
       });
     }
@@ -59,7 +62,7 @@ await runHook(async (input) => {
       : evidence.testsPassed !== true
         ? 'testsPassed is not true'
         : 'evidence is stale (>2h)';
-    audit(dir, 'stop', 'continue', `missing fresh test evidence (${why})`, { ticket: state.ticket, phase: state.phase });
+    audit(dir, 'stop', 'continue', `missing fresh test evidence (${why})`, { ticket: state.ticket, phase: impl[0][1].phase });
     return respond({
       followup_message:
         `ANTI-RATIONALIZATION GATE: No fresh green-test evidence found (${why}). ` +

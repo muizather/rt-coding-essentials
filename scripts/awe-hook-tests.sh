@@ -88,22 +88,23 @@ EOF
 write_impl() {
   local role="$1"
   local open="${2:-}"
-  mkdir -p "$FIX/plans/PROJ-1"
-  cat > "$FIX/plans/PROJ-1/${role}.implementation.plan.md" <<EOF
+  local ticket="${3:-PROJ-1}"
+  mkdir -p "$FIX/plans/$ticket"
+  cat > "$FIX/plans/$ticket/${role}.implementation.plan.md" <<EOF
 ---
 status: ready
 ---
 # ${role} implementation
 EOF
   if [[ -n "$open" ]]; then
-    cat > "$FIX/plans/PROJ-1/${role}.implementation-questions.md" <<EOF
+    cat > "$FIX/plans/$ticket/${role}.implementation-questions.md" <<EOF
 # Implementation questions — ${role}
 - [ ] Q1: ${open}
   GUESS: x
   A:
 EOF
   else
-    cat > "$FIX/plans/PROJ-1/${role}.implementation-questions.md" <<EOF
+    cat > "$FIX/plans/$ticket/${role}.implementation-questions.md" <<EOF
 # Implementation questions — ${role}
 No open questions.
 EOF
@@ -284,6 +285,177 @@ expect_deny "code phase blocks frontend src while FE questions open" "$out"
 write_impl frontend
 out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"src/app/Page.tsx","content":"x"}}')"
 expect_allow "code phase allows frontend src when FE questions closed" "$out"
+
+echo "== Multi-ticket plans + dependsOn =="
+mkdir -p "$FIX/.cursor/state"
+cat > "$FIX/.cursor/state/awe-state.json" <<'EOF'
+{
+  "active": true,
+  "ticket": "PROJ-2",
+  "phase": "intake",
+  "roles": {
+    "backend":  { "planStatus": "draft", "iteration": 0, "verified": false },
+    "frontend": { "planStatus": "draft", "iteration": 0, "verified": false }
+  },
+  "tickets": {
+    "PROJ-1": {
+      "phase": "approve",
+      "roles": {
+        "backend":  { "planStatus": "draft", "iteration": 0, "verified": false },
+        "frontend": { "planStatus": "draft", "iteration": 0, "verified": false }
+      },
+      "dependsOn": []
+    },
+    "PROJ-2": {
+      "phase": "intake",
+      "roles": {
+        "backend":  { "planStatus": "draft", "iteration": 0, "verified": false },
+        "frontend": { "planStatus": "draft", "iteration": 0, "verified": false }
+      },
+      "dependsOn": []
+    }
+  }
+}
+EOF
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"plans/PROJ-2/intake.md","content":"# n"}}')"
+expect_allow "second ticket intake writes plans while first is in approve" "$out"
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"src/foo.ts","content":"x"}}')"
+expect_deny "no coding ticket → src still blocked" "$out"
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-backend-dev"}')"
+expect_deny "backend-dev denied while both tickets are plan-only" "$out"
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-architect"}')"
+expect_allow "architect allowed for the ticket still in intake" "$out"
+
+cat > "$FIX/.cursor/state/awe-state.json" <<'EOF'
+{
+  "active": true,
+  "ticket": "PROJ-2",
+  "phase": "code",
+  "roles": {
+    "backend":  { "planStatus": "approved", "iteration": 0, "verified": false },
+    "frontend": { "planStatus": "approved", "iteration": 0, "verified": false }
+  },
+  "tickets": {
+    "PROJ-1": {
+      "phase": "approve",
+      "roles": {
+        "backend":  { "planStatus": "draft", "iteration": 0, "verified": false },
+        "frontend": { "planStatus": "draft", "iteration": 0, "verified": false }
+      },
+      "dependsOn": []
+    },
+    "PROJ-2": {
+      "phase": "code",
+      "roles": {
+        "backend":  { "planStatus": "approved", "iteration": 0, "verified": false },
+        "frontend": { "planStatus": "approved", "iteration": 0, "verified": false }
+      },
+      "dependsOn": []
+    }
+  }
+}
+EOF
+write_impl backend "" PROJ-2
+write_impl frontend "" PROJ-2
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":".worktrees/PROJ-2-backend/src/foo.ts","content":"x"}}')"
+expect_allow "PROJ-2 code src allowed in worktree while PROJ-1 is still approve" "$out"
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-backend-dev"}')"
+expect_allow "backend-dev allowed for the ticket in code" "$out"
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-architect"}')"
+expect_deny "architect denied when no ticket is in intake|architect" "$out"
+
+cat > "$FIX/.cursor/state/awe-state.json" <<'EOF'
+{
+  "active": true,
+  "ticket": "PROJ-2",
+  "phase": "code",
+  "roles": {
+    "backend":  { "planStatus": "approved", "iteration": 0, "verified": false },
+    "frontend": { "planStatus": "approved", "iteration": 0, "verified": false }
+  },
+  "tickets": {
+    "PROJ-1": {
+      "phase": "approve",
+      "roles": {
+        "backend":  { "planStatus": "draft", "iteration": 0, "verified": false },
+        "frontend": { "planStatus": "draft", "iteration": 0, "verified": false }
+      },
+      "dependsOn": []
+    },
+    "PROJ-2": {
+      "phase": "code",
+      "roles": {
+        "backend":  { "planStatus": "approved", "iteration": 0, "verified": false },
+        "frontend": { "planStatus": "approved", "iteration": 0, "verified": false }
+      },
+      "dependsOn": ["PROJ-1"]
+    }
+  }
+}
+EOF
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":".worktrees/PROJ-2-backend/src/foo.ts","content":"x"}}')"
+expect_deny "dependent ticket cannot write src until PROJ-1 is done" "$out"
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"plans/PROJ-2/backend.implementation.plan.md","content":"---\nstatus: draft\n---\n"}}')"
+expect_allow "dependent ticket may still write its implementation plan" "$out"
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-backend-dev"}')"
+expect_deny "backend-dev denied while dependsOn is unmet" "$out"
+
+cat > "$FIX/.cursor/state/awe-state.json" <<'EOF'
+{
+  "active": true,
+  "ticket": "PROJ-2",
+  "phase": "code",
+  "roles": {
+    "backend":  { "planStatus": "approved", "iteration": 0, "verified": false },
+    "frontend": { "planStatus": "approved", "iteration": 0, "verified": false }
+  },
+  "tickets": {
+    "PROJ-1": {
+      "phase": "done",
+      "roles": {
+        "backend":  { "planStatus": "approved", "iteration": 0, "verified": true },
+        "frontend": { "planStatus": "approved", "iteration": 0, "verified": true }
+      },
+      "dependsOn": []
+    },
+    "PROJ-2": {
+      "phase": "code",
+      "roles": {
+        "backend":  { "planStatus": "approved", "iteration": 0, "verified": false },
+        "frontend": { "planStatus": "approved", "iteration": 0, "verified": false }
+      },
+      "dependsOn": ["PROJ-1"]
+    }
+  }
+}
+EOF
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":".worktrees/PROJ-2-backend/src/foo.ts","content":"x"}}')"
+expect_allow "dependent ticket may write src once dependsOn is done" "$out"
+
+MULTI_WT="$(env CURSOR_PROJECT_DIR="$FIX" node --input-type=module -e "
+import { needsWorktree, unmetDependencies, loadState } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+const s = loadState(process.env.CURSOR_PROJECT_DIR);
+process.stdout.write([needsWorktree(s,'PROJ-2')?'wt-yes':'wt-no', unmetDependencies(s,'PROJ-2').join(',')||'none'].join('|'));
+")"
+if [[ "$MULTI_WT" == wt-no\|none ]]; then pass "needsWorktree false when other ticket is done"; else fail "needsWorktree/unmet: $MULTI_WT"; fi
+
+cat > "$FIX/.cursor/state/awe-state.json" <<'EOF'
+{
+  "active": true,
+  "ticket": "PROJ-2",
+  "phase": "code",
+  "tickets": {
+    "PROJ-1": { "phase": "code", "roles": { "backend": { "planStatus": "approved", "iteration": 0, "verified": false } }, "dependsOn": [] },
+    "PROJ-2": { "phase": "code", "roles": { "backend": { "planStatus": "approved", "iteration": 0, "verified": false } }, "dependsOn": [] }
+  }
+}
+EOF
+MULTI_WT2="$(env CURSOR_PROJECT_DIR="$FIX" node --input-type=module -e "
+import { needsWorktree, loadState } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+const s = loadState(process.env.CURSOR_PROJECT_DIR);
+process.stdout.write(needsWorktree(s,'PROJ-2') ? 'wt-yes' : 'wt-no');
+")"
+if [[ "$MULTI_WT2" == wt-yes ]]; then pass "needsWorktree true when two tickets are in code"; else fail "needsWorktree parallel: $MULTI_WT2"; fi
 
 echo "== Plan-clobber =="
 write_state true code approved approved

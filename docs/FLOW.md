@@ -9,7 +9,7 @@ actually running, and the hook test suite, see [GUIDE.md](GUIDE.md).
 - **Skill** — a slash-command playbook you invoke (`/awe-intake`, `/awe-code`, …).
 - **Hook** — a script Cursor runs around a tool call (write, shell, subagent spawn, stop) that can allow/deny it.
 - **Subagent** — a fresh-context agent the orchestrator spawns (architect, dev, reviewer, verifier).
-- **Worktree** — an isolated git working copy on its own branch, so roles code in parallel without colliding.
+- **Worktree** — an isolated git working copy on its own branch. Created only when two+ plans are implementing at once so they do not collide.
 
 ## The whole pipeline
 
@@ -20,7 +20,7 @@ flowchart TD
     C --> D{"All open questions answered? All dependent plans approved?"}
     D -- "no (async, non-blocking)" --> DQ["open-questions.md waits; other tasks proceed in parallel"]
     DQ --> D
-    D -- "yes — /awe-approve (HUMAN GATE)" --> E["/awe-code backend | frontend — worktree + branch awe/TICKET-role"]
+    D -- "yes — /awe-approve (HUMAN GATE)" --> E["/awe-code backend | frontend — branch awe/TICKET-role; worktree only if another plan is already implementing"]
     E --> F["Coding agent implements + tests — writes awe-evidence.json"]
     F --> G["/awe-review — functional + security passes + deterministic scanners"]
     G --> H{"Verdict"}
@@ -37,13 +37,13 @@ flowchart TD
 
 ## Phase walkthrough (what actually runs)
 
-**1 — INTAKE** (`/awe-intake`). Pulls the ticket via the ticket MCP (or you paste text), treats it as **untrusted data**, and writes a sanitized `plans/<ticket>/intake.md` plus `open-questions.md` — each question carries a hypothesis, a confidence number, and a `GUESS:` so you answer with one word. Writes `awe-state.json` (`phase: architect`). *Hook involved:* `pre-tool-gate.mjs` allows writes only under `plans/` and `.cursor/state/` while in a planning phase.
+**1 — INTAKE** (`/awe-intake`). Pulls the ticket via the ticket MCP (or you paste text), treats it as **untrusted data**, and writes a sanitized `plans/<ticket>/intake.md` plus `open-questions.md` — each question carries a hypothesis, a confidence number, and a `GUESS:` so you answer with one word. Writes `awe-state.json` (`phase: architect`) **merged** into `tickets` — other in-flight plans stay. If this work shares a surface with an open plan, record `dependsOn`; do **not** refuse the new plan. *Hook involved:* `pre-tool-gate.mjs` allows writes only under `plans/` and `.cursor/state/` for tickets still in a planning phase.
 
 **2 — ARCHITECT** (`/awe-architect`). The `awe-architect` subagent (gated by `subagent-gate.mjs`) turns the spec into `architecture.md` (cross-role contract) and one `<role>.spec.md` per role (`backend` / `frontend`). High-level only — no source file lists. Open questions are optional.
 
-**3 — APPROVE** (`/awe-approve`) ▣ **human gate**. Validates any architect questions are answered, rejects hedged approvals ("looks reasonable" ≠ yes), then flips each **spec** to `status: approved`. *Hooks involved:* `pre-tool-gate.mjs` blocks all code writes until this flips `phase: code`; the plan-clobber guard makes approved specs append-only.
+**3 — APPROVE** (`/awe-approve`) ▣ **human gate**. Validates any architect questions are answered, rejects hedged approvals ("looks reasonable" ≠ yes), then flips each **spec** to `status: approved`. *Hooks involved:* `pre-tool-gate.mjs` blocks **this ticket's** code writes until this flips its `phase: code`; another ticket already in `code` is not frozen. The plan-clobber guard makes approved specs append-only.
 
-**4 — CODE** (`/awe-code <role>`). Creates a worktree + branch `awe/<ticket>-<role>`, writes `handoff.md`, spawns `awe-backend-dev` or `awe-frontend-dev`. The coder first writes a low-level `implementation.plan.md` (files, tests, today's advisory search) and `implementation-questions.md`. Open implementation questions **block source writes**. Then TDD using the repo's own commands. *Hooks involved:* `pre-tool-gate.mjs` allows source only after questions are closed; `post-tool-scan.mjs` secret-scans every edit; `before-shell.mjs` blocks dangerous commands; `stop-evidence.mjs` refuses to end the session without fresh evidence.
+**4 — CODE** (`/awe-code <role>`). Branch `awe/<ticket>-<role>`. A worktree is created **only** when another plan is already in `code|review|verify|ship`. Writes `handoff.md`, spawns `awe-backend-dev` or `awe-frontend-dev`. The coder first writes a low-level `implementation.plan.md` (files, tests, today's advisory search) and `implementation-questions.md`. Open implementation questions **block source writes**. Unmet `dependsOn` blocks **implement**, not the plan files. Then TDD using the repo's own commands. *Hooks involved:* `pre-tool-gate.mjs` allows source only after questions are closed and dependencies are `done`; `post-tool-scan.mjs` secret-scans every edit; `before-shell.mjs` blocks dangerous commands; `stop-evidence.mjs` refuses to end the session without fresh evidence.
 
 **5 — REVIEW** (`/awe-review <role>`). Runs scanners, then spawns `awe-reviewer` — a fresh-context **adversarial** pass over the diff against the spec, gherkin, and implementation plan. `awe-security-reviewer` is optional (`securityReview: true`). Findings are severity-labeled (Critical ⇒ the iteration fails). *needs-fix* respawns the coder; *verified* moves on; three unresolved rounds write `ESCALATION.md` and hand it to you.
 
@@ -120,7 +120,7 @@ sequenceDiagram
     actor Human
     participant Orch as Orchestrator (main agent)
     participant Hooks as AWE Hooks
-    participant Coder as awe-backend-dev (worktree)
+    participant Coder as awe-backend-dev
     participant Rev as awe-reviewer
     participant Files as plans/ + state files
     participant CI as CI (GitHub/GitLab)
@@ -128,7 +128,7 @@ sequenceDiagram
     Human->>Orch: /awe-code backend
     Orch->>Hooks: subagentStart · awe-backend-dev
     Hooks-->>Orch: allow (phase=code AND planStatus=approved)
-    Orch->>Coder: spawn on worktree .worktrees/PROJ-123-backend with handoff.md
+    Orch->>Coder: spawn on branch awe/PROJ-123-backend (worktree only if another plan is implementing) with handoff.md
     loop per task (RED → GREEN → REFACTOR)
         Coder->>Hooks: preToolUse · Write src/…
         Hooks-->>Coder: allow (phase=code)
@@ -278,10 +278,37 @@ sequenceDiagram
 
 ---
 
-## Sequence: Parallel backend + frontend worktrees
+## Sequence: Parallel plans (worktrees only when needed)
 
-Roles do not share a working tree. The reviewer only judges that role's diff
-against its plan + the contract stub.
+A second plan is never refused at intake. If it **depends** on an open plan, record `dependsOn` and block **code** until that plan is `done`. If two plans are both implementing, give the later one a worktree so the branches do not share a checkout.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Human
+    participant Orch as Orchestrator
+    participant State as awe-state.json
+    participant Main as main checkout
+    participant WT as .worktrees/B-frontend
+
+    Human->>Orch: /awe-run ticket A
+    Orch->>State: tickets.A phase=architect … later code
+    Orch->>Main: checkout awe/A-frontend (no worktree — only implementing ticket)
+    Human->>Orch: /awe-run ticket B (independent)
+    Orch->>State: tickets.B added — A untouched
+    Note over State: B.dependsOn=[] → B may implement in parallel
+    Orch->>WT: worktree for B because A already holds a branch
+    Human->>Orch: /awe-run ticket C (same banner as A)
+    Orch->>State: tickets.C dependsOn=[A]
+    Note over Orch: C may intake/architect/approve; implement waits until A is done
+```
+
+---
+
+## Sequence: Parallel backend + frontend (same ticket)
+
+Roles do not share a working tree when they would collide. The reviewer only judges that role's diff
+against its plan + the contract stub. If only one role is implementing, no worktree.
 
 ```mermaid
 sequenceDiagram
@@ -366,7 +393,7 @@ sequenceDiagram
 
 ## Sequence: How the hook test suite works
 
-`npm run test:hooks` (`scripts/awe-hook-tests.sh`) currently **86 passed, 0 failed**.
+`npm run test:hooks` (`scripts/awe-hook-tests.sh`) currently **120 passed, 0 failed**.
 It builds a throwaway fixture, pipes Cursor-shaped JSON into each hook, and asserts allow/deny.
 
 ```mermaid

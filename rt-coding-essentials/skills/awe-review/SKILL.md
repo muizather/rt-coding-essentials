@@ -9,8 +9,8 @@ description: Review one role's diff — scanners, adversarial functional review,
 
 ## Procedure
 
-1. **Gate check.** State `active: true`, `phase: code|review`. The role's branch `awe/<ticket>-<role>` must exist with commits beyond the base branch.
-2. **Set phase** `review` (keep `active`/`ticket`/roles; bump `updatedAt`).
+1. **Gate check.** State `active: true`, this ticket `phase: code|review`. The role's branch `awe/<ticket>-<role>` must exist with commits beyond the base branch.
+2. **Set phase** `review` on **this ticket** (`tickets.<id>.phase` and focus if this is the focus ticket). Do not change other tickets. Bump `updatedAt`.
 3. **Run scanners** on the role's diff: built-in secret patterns always; `gitleaks`, `semgrep --config p/default`, and `osv-scanner` when on PATH (absent → note "degraded" and continue; `strictSecurity: true` → stop and tell the human to install them).
 4. **Spawn `awe-reviewer`** (read-only, background), briefed with: ticket, role, round N = `roles.<role>.iteration + 1`, diff range `origin/<baseBranch>...awe/<ticket>-<role>`, spec + architecture + implementation plan + intake paths, prior rounds folder. It writes a short testing plan from the architect spec, then hunts the diff. Apply the shared rubric in `references/review-rubric.md` (five axes: correctness, readability, architecture, security, performance). Label every finding by severity — **Critical / Required / Optional / Nit / FYI**. The functional reviewer is **adversarial**: its job is to *disprove* the diff, not approve it.
 5. **Optional security reviewer.** Spawn `awe-security-reviewer` in parallel **only when** `securityReview` is true in `awe.config.json` (or discovered config). Default is **false** — not every project wants a second security agent. When it is off, the functional reviewer's security axis + scanners + coding-time advisory search are the bar. When it is on, collect both verdicts; needs-fix from either fails the round.

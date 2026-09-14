@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 ## Procedure
 
-1. **Gate check.** State `active: true`, `phase: verify`, and every role `verified: true`. If not, report which role is unverified and stop.
+1. **Gate check.** State `active: true`, this ticket `phase: verify`, and every role on **this ticket** `verified: true`. If not, report which role is unverified and stop. Other tickets may still be in earlier phases.
 2. **Spawn the `awe-verifier` subagent.** Brief: ticket, paths to intake/architecture/plans/handoffs/reviews, env URLs from optional `awe.config.json` / discovered config (there is no plugin rule 30).
 3. **Confirm** `plans/<ticket>/verification.md` exists with frontmatter `verified: false`, numbered per-role checks, combined E2E checks mapped 1:1 to acceptance criteria, and screenshot asks.
 4. **Hand it to the human**, verbatim-style:
@@ -24,7 +24,7 @@ disable-model-invocation: true
 ```
 
    The ship gate's `git push` checks this file — no signoff, no push.
-6. **Set phase** `ship`. If this is `/awe-run` and the human wants it shipped, continue to `/awe-ship`. Otherwise tell the human to run `/awe-ship`.
+6. **Set phase** `ship` on this ticket (`tickets.<id>` + focus). Leave other tickets unchanged. If this is `/awe-run` and the human wants it shipped, continue to `/awe-ship`. Otherwise tell the human to run `/awe-ship`.
 
 ## If something fails: stop the line
 

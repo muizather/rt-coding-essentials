@@ -49,7 +49,7 @@ Optional markdown under the app's `docs/` only if the human asked for committed 
 
 ## Orchestration
 
-Prefer `/awe-run` (or a natural-language ticket). It chains intake → architect → code → review until tests are green. It **stops** for an explicit **yes** at APPROVE and for hands-on VERIFY. Hedged chat is not approval.
+Prefer `/awe-run` (or a natural-language ticket). It chains intake → architect → code → review until tests are green. It **stops** for an explicit **yes** at APPROVE and for hands-on VERIFY. Hedged chat is not approval. A second `/awe-run` while another plan is open **starts a new plan** (or resumes the named ticket). It records `dependsOn` when the work shares a surface; it does not refuse intake.
 
 ## Optional reporting
 

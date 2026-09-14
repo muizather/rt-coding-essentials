@@ -15,7 +15,7 @@ description: Re-enter the pipeline for a post-merge regression — links the ori
    - **Links to the original artifacts**: `../<ticket>/architecture.md`, the role plans, `reviews/round-*.md`, `verification.md`, and the shipped diff range.
    - A "why did verification miss this?" section — answer it honestly; if the gap is a missing verification step, the fix plan must add that step to `verification.md`.
 3. **Copy forward** any still-open items from the original `open-questions.md` that relate to the defect.
-4. **Write state** (re-activates the pipeline):
+4. **Write state** (re-activates this regression ticket; **merge**, do not drop other in-flight tickets):
 
 ```json
 {
@@ -23,6 +23,16 @@ description: Re-enter the pipeline for a post-merge regression — links the ori
   "ticket": "<original-ticket>-R<N>",
   "phase": "architect",
   "roles": { "<affected roles>": { "planStatus": "draft", "iteration": 0, "verified": false } },
+  "dependsOn": [],
+  "tickets": {
+    "<keep-others>": {},
+    "<original-ticket>-R<N>": {
+      "phase": "architect",
+      "roles": { "<affected roles>": { "planStatus": "draft", "iteration": 0, "verified": false } },
+      "dependsOn": [],
+      "regressionOf": "<original-ticket>"
+    }
+  },
   "updatedAt": "<ISO-8601>",
   "regressionOf": "<original-ticket>"
 }

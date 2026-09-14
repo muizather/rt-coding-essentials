@@ -29,7 +29,7 @@ date: ""               # human fills in
 
 Then the test script, optimized for a busy human:
 
-1. **Setup** — exact commands: which branch(es) to check out or how to run both worktrees, env vars to set (by name, never values), seed data, services to start.
+1. **Setup** — exact commands: which branch to check out (and a worktree path only if one was created for parallel plans), env vars to set (by name, never values), seed data, services to start.
 2. **Per-role checks** — numbered steps. Each step: exact action (URL to open / command to run / button to click), **expected result** written as an observable fact ("the toast reads 'Saved'", "response is 201 with an `id` field"), and a **screenshot to take** where visual.
 3. **Combined E2E checks** — walk **each gherkin scenario** in `plans/<ticket>/e2e/` as numbered human steps (exact UI/API action + expected result). Gherkin is the feature E2E bar; do not replace it with unit-test names.
 4. **Regression spot-checks** — one step per resolved review finding proving it stays fixed.

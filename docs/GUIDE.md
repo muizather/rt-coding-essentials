@@ -215,12 +215,13 @@ flowchart LR
 ```
 
 **Parallel roles:** `/awe-code backend` and `/awe-code frontend` in two chats.
-Each gets its own git worktree and branch `awe/<ticket>-<role>`. Frontend
-codes against the **contract stub** in `architecture.md` so a missing API
-does not fail frontend review.
+Each implements on branch `awe/<ticket>-<role>`. A worktree is used only when
+another plan already occupies a checkout. Frontend codes against the **contract
+stub** in `architecture.md` so a missing API does not fail frontend review.
 
 **Async questions:** intake writes `plans/<ticket>/open-questions.md`. You
-check boxes whenever you want. Other tickets continue. No blocking quiz.
+check boxes whenever you want. Other tickets continue at intake/architect;
+implementation of a dependent ticket waits until `dependsOn` is `done`.
 
 **MCP in the flow:** if a ticket MCP is enabled in **project** `mcp.json`,
 intake fetches the ticket. If not, you paste text. Ship opens a PR via MCP
@@ -233,7 +234,7 @@ or prints `gh pr create`. Same pipeline either way.
 On 2026-09-08 the finishing pass piped JSON into every hook and ran
 `setup.mjs` in a throwaway git repo: **73 passed, 0 failed**. That `/tmp`
 script is gone; the same cases (plus extra ship/subagent assertions) now
-live in-repo and currently report **86 passed, 0 failed**:
+live in-repo and currently report **120 passed, 0 failed**:
 
 ```bash
 # from this boilerplate
@@ -297,7 +298,7 @@ syntax-checks setup + hooks.
 5. **Show the block:** in the same chat, "just implement it in src now." The
    write-gate denies. Point at `.cursor/state/audit.log`.
 6. Answer `open-questions.md` if any → `/awe-architect` → `/awe-approve` → **yes**.
-7. `/awe-code backend` — worktree + tests + evidence file.
+7. `/awe-code backend` — branch + tests + evidence file (worktree only if another plan is implementing).
 8. `/awe-review backend` → `/awe-verify` — you run `verification.md`, set
    `verified: true` + initials.
 9. `/awe-ship` — or stop before push if this is a throwaway.

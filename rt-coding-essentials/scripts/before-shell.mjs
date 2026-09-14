@@ -13,6 +13,7 @@ import { execFileSync } from 'node:child_process';
 import {
   runHook, respond, loadState, loadStateJson, isActive, projectDir,
   extractCommand, minutesSince, SIGNOFF_FILE, EVIDENCE_FILE,
+  getTicketEntry, parseAweBranch,
 } from './lib/state.mjs';
 import { audit } from './lib/audit.mjs';
 
@@ -63,11 +64,15 @@ await runHook(async (input) => {
 
   // --- Layer B: pipeline gate ---------------------------------------------------
   if (/\bgit\s+push\b/.test(command)) {
-    if (state.phase !== 'ship') {
-      return deny(dir, `phase is ${state.phase} — push happens in the ship phase (run /awe-ship).`, command);
-    }
     const branch = currentBranch(dir);
-    const expectedPrefix = `awe/${state.ticket}-`;
+    const parsed = parseAweBranch(branch);
+    const ticketId = parsed?.ticket || state.ticket;
+    const entry = getTicketEntry(state, ticketId);
+    const phase = entry?.phase || state.phase;
+    if (phase !== 'ship') {
+      return deny(dir, `ticket ${ticketId ?? '?'} is in phase ${phase} — push happens in the ship phase (run /awe-ship).`, command);
+    }
+    const expectedPrefix = ticketId ? `awe/${ticketId}-` : 'awe/';
     if (!branch || !branch.startsWith(expectedPrefix)) {
       return deny(
         dir,
@@ -80,14 +85,14 @@ await runHook(async (input) => {
     const signoffOk = signoff && signoff.verified === true;
     const evidenceOk = evidence && evidence.testsPassed === true && minutesSince(evidence.at) <= 120;
     if (signoffOk && evidenceOk) {
-      audit(dir, 'beforeShellExecution', 'allow', 'ship push: signoff verified + fresh evidence', { command, branch });
+      audit(dir, 'beforeShellExecution', 'allow', 'ship push: signoff verified + fresh evidence', { command, branch, ticket: ticketId });
       return respond({ permission: 'allow' });
     }
     const missing = [
       !signoffOk ? 'human signoff (.cursor/state/awe-signoff.json with verified: true)' : null,
       !evidenceOk ? 'fresh green-test evidence (<2h old in .cursor/state/awe-evidence.json)' : null,
     ].filter(Boolean).join(' and ');
-    audit(dir, 'beforeShellExecution', 'ask', `ship push missing ${missing}`, { command, branch });
+    audit(dir, 'beforeShellExecution', 'ask', `ship push missing ${missing}`, { command, branch, ticket: ticketId });
     return respond({
       permission: 'ask',
       user_message: `AWE ship gate: this push is missing ${missing}. Approve only if you have personally verified the change.`,

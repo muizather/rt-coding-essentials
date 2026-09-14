@@ -13,6 +13,7 @@
 
 import {
   runHook, respond, loadState, isActive, projectDir, extractSubagentName,
+  listTickets, unmetDependencies,
 } from './lib/state.mjs';
 import { audit } from './lib/audit.mjs';
 
@@ -34,9 +35,12 @@ await runHook(async (input) => {
   }
   if (!name.startsWith('awe-')) return respond({ permission: 'allow' }); // not ours to gate
 
-  const phase = state.phase;
+  const tickets = listTickets(state);
+  const entries = Object.entries(tickets);
   const deny = (why) => {
-    audit(dir, 'subagentStart', 'deny', why, { subagent: name, phase, ticket: state.ticket });
+    const focus = state.ticket;
+    const phase = tickets[focus]?.phase || state.phase;
+    audit(dir, 'subagentStart', 'deny', why, { subagent: name, phase, ticket: focus });
     return respond({
       permission: 'deny',
       agent_message:
@@ -49,25 +53,40 @@ await runHook(async (input) => {
     return deny(`${name} is not a core AWE agent — this plugin only ships backend-dev and frontend-dev`);
   }
 
+  const some = (pred) => entries.some(([id, t]) => pred(id, t));
+
   if (name === 'awe-architect') {
-    if (!['intake', 'architect'].includes(phase)) {
-      return deny(`architect runs in intake|architect, current phase is ${phase}`);
+    if (!some((_, t) => ['intake', 'architect'].includes(t.phase))) {
+      return deny(`architect runs in intake|architect; no in-flight ticket is in those phases`);
     }
   } else if (ROLE_OF_AGENT[name]) {
-    if (phase !== 'code') return deny(`${name} runs in phase=code, current phase is ${phase}`);
     const role = ROLE_OF_AGENT[name];
-    const planStatus = state.roles?.[role]?.planStatus;
-    if (planStatus !== 'approved') {
-      return deny(`${role} plan status is "${planStatus ?? 'missing'}" — must be "approved" (run /awe-approve)`);
+    const ready = entries.filter(([id, t]) => {
+      if (t.phase !== 'code') return false;
+      if (t.roles?.[role]?.planStatus !== 'approved') return false;
+      return unmetDependencies(state, id).length === 0;
+    });
+    if (ready.length === 0) {
+      const blocked = entries.filter(([id, t]) => (
+        t.phase === 'code' && t.roles?.[role]?.planStatus === 'approved'
+          && unmetDependencies(state, id).length > 0
+      ));
+      if (blocked.length) {
+        const bits = blocked.map(([id]) => `${id} waits on ${unmetDependencies(state, id).join(', ')}`);
+        return deny(`${name} cannot implement yet — ${bits.join('; ')}`);
+      }
+      return deny(`${name} runs in phase=code with ${role} plan approved; no ticket is in that state`);
     }
   } else if (name === 'awe-reviewer' || name === 'awe-security-reviewer') {
-    if (!['review', 'code'].includes(phase)) {
-      return deny(`reviewers run in phase=review|code, current phase is ${phase}`);
+    if (!some((_, t) => ['review', 'code'].includes(t.phase))) {
+      return deny(`reviewers run in phase=review|code; no in-flight ticket is in those phases`);
     }
   } else if (name === 'awe-verifier') {
-    if (phase !== 'verify') return deny(`verifier runs in phase=verify, current phase is ${phase}`);
+    if (!some((_, t) => t.phase === 'verify')) {
+      return deny(`verifier runs in phase=verify; no in-flight ticket is in verify`);
+    }
   }
 
-  audit(dir, 'subagentStart', 'allow', `${name} permitted in phase=${phase}`, { subagent: name, phase });
+  audit(dir, 'subagentStart', 'allow', `${name} permitted`, { subagent: name, ticket: state.ticket });
   return respond({ permission: 'allow' });
 });

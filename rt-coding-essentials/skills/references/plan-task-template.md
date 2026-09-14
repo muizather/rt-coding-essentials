@@ -78,7 +78,7 @@ Before writing a plan that already exists with unchecked tasks: **same work bein
 
 - **Safe to parallelize:** independent feature slices, tests for already-built features, docs.
 - **Must be sequential:** DB migrations, shared-state changes, dependency chains.
-- **Needs coordination:** features sharing an API contract — define the contract first (AWE's `architecture.md` § Contract), then parallelize. This is exactly how AWE runs per-role dev agents on separate worktrees.
+- **Needs coordination:** features sharing an API contract — define the contract first (AWE's `architecture.md` § Contract), then parallelize. Cross-ticket: set `dependsOn` on the later plan; implementation waits, intake does not.
 
 ## Plan frontmatter (AWE)
 

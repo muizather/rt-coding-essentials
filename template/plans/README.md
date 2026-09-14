@@ -1,6 +1,6 @@
 # plans/ — the AWE workspace
 
-Every ticket gets a folder `plans/<ticket>/`. It is the single source of truth for what was asked, what was planned, what reviewers said, and what the human verified. Commit these folders — they are your project's memory of *why* the code looks the way it does.
+Every ticket gets a folder `plans/<ticket>/`. It is the single source of truth for what was asked, what was planned, what reviewers said, and what the human verified. Commit these folders — they are your project's memory of *why* the code looks the way it does. Multiple `plans/<ticket>/` folders may exist at once. If one plan cannot be implemented until another is done, set `dependsOn` in intake frontmatter (and in `awe-state.json`). That does not block creating the new plan; it blocks **code** until the dependency is `done`.
 
 ## Lifecycle
 
@@ -23,6 +23,7 @@ Every ticket gets a folder `plans/<ticket>/`. It is the single source of truth f
 ticket: PROJ-123
 source: manual | mcp:redmine | mcp:jira | mcp:github | mcp:gitlab
 createdAt: 2026-09-08T12:00:00Z
+dependsOn: []
 ---
 # <one-line summary>
 ## Summary
