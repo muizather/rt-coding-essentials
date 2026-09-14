@@ -6,9 +6,10 @@
 //   awe-backend-dev          → phase code AND roles.backend.planStatus == approved
 //   awe-frontend-dev         → phase code AND roles.frontend.planStatus == approved
 //   awe-reviewer             → phase review|code
-//   awe-security-reviewer    → phase review|code
+//   awe-security-reviewer    → phase review|code (optional agent; still gated if spawned)
 //   awe-verifier             → phase verify
-// Unknown / non-AWE subagents → allow. Missing name field → allow + log (defensive).
+// Unknown awe-* (including removed awe-repo-dev) → deny.
+// Non-AWE subagents → allow. Missing name field → allow + log (defensive).
 
 import {
   runHook, respond, loadState, isActive, projectDir, extractSubagentName,
@@ -16,10 +17,10 @@ import {
 import { audit } from './lib/audit.mjs';
 
 const ROLE_OF_AGENT = { 'awe-backend-dev': 'backend', 'awe-frontend-dev': 'frontend' };
-
-function anyRoleApproved(state) {
-  return Object.values(state.roles || {}).some((r) => r?.planStatus === 'approved');
-}
+const CORE_AGENTS = new Set([
+  'awe-architect', 'awe-backend-dev', 'awe-frontend-dev',
+  'awe-reviewer', 'awe-security-reviewer', 'awe-verifier',
+]);
 
 await runHook(async (input) => {
   const dir = projectDir();
@@ -44,20 +45,20 @@ await runHook(async (input) => {
     });
   };
 
+  if (!CORE_AGENTS.has(name)) {
+    return deny(`${name} is not a core AWE agent — this plugin only ships backend-dev and frontend-dev`);
+  }
+
   if (name === 'awe-architect') {
     if (!['intake', 'architect'].includes(phase)) {
       return deny(`architect runs in intake|architect, current phase is ${phase}`);
     }
-  } else if (ROLE_OF_AGENT[name] || name === 'awe-repo-dev') {
+  } else if (ROLE_OF_AGENT[name]) {
     if (phase !== 'code') return deny(`${name} runs in phase=code, current phase is ${phase}`);
-    if (ROLE_OF_AGENT[name]) {
-      const role = ROLE_OF_AGENT[name];
-      const planStatus = state.roles?.[role]?.planStatus;
-      if (planStatus !== 'approved') {
-        return deny(`${role} plan status is "${planStatus ?? 'missing'}" — must be "approved" (run /awe-approve)`);
-      }
-    } else if (!anyRoleApproved(state)) {
-      return deny(`awe-repo-dev needs at least one approved spec (run /awe-approve)`);
+    const role = ROLE_OF_AGENT[name];
+    const planStatus = state.roles?.[role]?.planStatus;
+    if (planStatus !== 'approved') {
+      return deny(`${role} plan status is "${planStatus ?? 'missing'}" — must be "approved" (run /awe-approve)`);
     }
   } else if (name === 'awe-reviewer' || name === 'awe-security-reviewer') {
     if (!['review', 'code'].includes(phase)) {

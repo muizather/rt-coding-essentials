@@ -170,21 +170,79 @@ export function discoverGitRepos(dir = projectDir()) {
   return out;
 }
 
-/** backend / frontend from tree + package.json; default backend-only. Multi-git family → repo folder names. */
-export function discoverRoles(dir = projectDir()) {
-  const family = discoverGitRepos(dir);
-  if (family.length > 1) return family.map((r) => r.name);
-  const pkg = readJsonFile(path.join(dir, 'package.json'));
+function detectFeBe(root) {
+  const pkg = readJsonFile(path.join(root, 'package.json'));
   const deps = { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) };
   const feDep = ['react', 'vue', 'next', 'svelte', 'nuxt', '@angular/core'].some((d) => deps[d]);
   const frontendPath = ['src/components', 'src/app', 'app/page.tsx', 'app/page.jsx', 'frontend', 'apps/web', 'web', 'client']
-    .some((p) => existsRel(dir, p));
+    .some((p) => existsRel(root, p));
   const hasFe = feDep || frontendPath;
   const hasBe = ['go.mod', 'pyproject.toml', 'Cargo.toml', 'pom.xml', 'build.gradle', 'backend', 'server', 'api', 'src/api', 'apps/api']
-    .some((p) => existsRel(dir, p));
+    .some((p) => existsRel(root, p));
+  return { hasFe, hasBe };
+}
+
+/** backend and/or frontend from tree + package.json; default backend-only. Never child-repo folder names. */
+export function discoverRoles(dir = projectDir()) {
+  const family = discoverGitRepos(dir);
+  const roots = family.length > 0 ? family.map((r) => r.path) : [dir];
+  let hasFe = false;
+  let hasBe = false;
+  for (const root of roots) {
+    const hit = detectFeBe(root);
+    hasFe = hasFe || hit.hasFe;
+    hasBe = hasBe || hit.hasBe;
+  }
   if (hasFe && hasBe) return ['backend', 'frontend'];
   if (hasFe) return ['frontend'];
   return ['backend'];
+}
+
+/** Unchecked GitHub-style boxes (`- [ ]`). Checked (`- [x]`) do not count. */
+export function hasUncheckedMarkdownBoxes(text) {
+  return String(text || '').split(/\r?\n/).some((l) => /^\s*-\s*\[\s*\]/.test(l));
+}
+
+/**
+ * Coding cannot start until this role has an implementation plan AND a questions
+ * file with no open `- [ ]` boxes (file may say "No open questions.").
+ */
+export function implementationArtifactsReady(dir, ticket, role) {
+  if (!dir || !ticket || !role) return false;
+  const plan = path.join(dir, 'plans', ticket, `${role}.implementation.plan.md`);
+  const questions = path.join(dir, 'plans', ticket, `${role}.implementation-questions.md`);
+  try {
+    if (!fs.existsSync(plan) || !fs.existsSync(questions)) return false;
+    return !hasUncheckedMarkdownBoxes(fs.readFileSync(questions, 'utf8'));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Guess which coding role owns a source path. `null` = unmatched (caller treats
+ * as backend when that role is in play).
+ */
+export function inferSourceWriteRole(rel) {
+  const p = String(rel || '');
+  if (!p || p.startsWith('plans/') || /(^|\/)plans\//.test(p) || p.startsWith('.cursor/')) return null;
+  if (/\.(tsx|jsx|vue|css|scss|sass|less)$/i.test(p)) return 'frontend';
+  if (/(^|\/)(frontend|client|web|apps\/web|src\/components|src\/app)\//.test(p)) return 'frontend';
+  if (/(^|\/)app\/.*\.(ts|js|tsx|jsx)$/.test(p)) return 'frontend';
+  if (/(^|\/)(backend|server|api|apps\/api)\//.test(p)) return 'backend';
+  return null;
+}
+
+/** Whether a code-phase source write is allowed given implementation artifacts. */
+export function sourceWriteAllowedInCodePhase(dir, state, rel) {
+  const ticket = state?.ticket;
+  const roles = state?.roles || {};
+  const matched = inferSourceWriteRole(rel);
+  let role = matched;
+  if (!role || roles[role]?.planStatus !== 'approved') {
+    role = roles.backend?.planStatus === 'approved' ? 'backend' : 'frontend';
+  }
+  return implementationArtifactsReady(dir, ticket, role);
 }
 
 function defaultConfig(dir) {
@@ -199,6 +257,7 @@ function defaultConfig(dir) {
     ticketSystem: 'none',
     notifications: { enabled: false, slack: false, gmail: false },
     strictSecurity: false,
+    securityReview: false,
     envUrls: {},
     deployCommands: {},
   };

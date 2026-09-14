@@ -39,13 +39,13 @@ flowchart TD
 
 **1 — INTAKE** (`/awe-intake`). Pulls the ticket via the ticket MCP (or you paste text), treats it as **untrusted data**, and writes a sanitized `plans/<ticket>/intake.md` plus `open-questions.md` — each question carries a hypothesis, a confidence number, and a `GUESS:` so you answer with one word. Writes `awe-state.json` (`phase: architect`). *Hook involved:* `pre-tool-gate.mjs` allows writes only under `plans/` and `.cursor/state/` while in a planning phase.
 
-**2 — ARCHITECT** (`/awe-architect`). The `awe-architect` subagent (gated by `subagent-gate.mjs`) turns the spec into `architecture.md` (dependency graph + cross-role contract) and one `<role>.plan.md` per role, each task templated (acceptance criteria, verify command, files, XS–XL size). Plans land as `status: draft`.
+**2 — ARCHITECT** (`/awe-architect`). The `awe-architect` subagent (gated by `subagent-gate.mjs`) turns the spec into `architecture.md` (cross-role contract) and one `<role>.spec.md` per role (`backend` / `frontend`). High-level only — no source file lists. Open questions are optional.
 
-**3 — APPROVE** (`/awe-approve`) ▣ **human gate**. Validates every open question is answered and every dependency acknowledged, rejects hedged approvals ("looks reasonable" ≠ yes), then flips each plan to `status: approved`. *Hooks involved:* `pre-tool-gate.mjs` blocks all code writes until this flips `phase: code`; the plan-clobber guard makes approved plans append-only.
+**3 — APPROVE** (`/awe-approve`) ▣ **human gate**. Validates any architect questions are answered, rejects hedged approvals ("looks reasonable" ≠ yes), then flips each **spec** to `status: approved`. *Hooks involved:* `pre-tool-gate.mjs` blocks all code writes until this flips `phase: code`; the plan-clobber guard makes approved specs append-only.
 
-**4 — CODE** (`/awe-code <role>`). Creates a worktree + branch `awe/<ticket>-<role>`, writes `handoff.md`, spawns the role dev subagent (gated by `subagent-gate.mjs` — needs `phase: code` + approved plan). The coder works test-first (RED→GREEN→REFACTOR) using the repo's own commands. *Hooks involved:* `pre-tool-gate.mjs` allows code writes; `post-tool-scan.mjs` secret-scans every edit; `before-shell.mjs` blocks dangerous commands; `stop-evidence.mjs` refuses to end the session without a fresh `awe-evidence.json` (`testsPassed:true`, < 2 h old).
+**4 — CODE** (`/awe-code <role>`). Creates a worktree + branch `awe/<ticket>-<role>`, writes `handoff.md`, spawns `awe-backend-dev` or `awe-frontend-dev`. The coder first writes a low-level `implementation.plan.md` (files, tests, today's advisory search) and `implementation-questions.md`. Open implementation questions **block source writes**. Then TDD using the repo's own commands. *Hooks involved:* `pre-tool-gate.mjs` allows source only after questions are closed; `post-tool-scan.mjs` secret-scans every edit; `before-shell.mjs` blocks dangerous commands; `stop-evidence.mjs` refuses to end the session without fresh evidence.
 
-**5 — REVIEW** (`/awe-review <role>`). Runs scanners, then spawns `awe-reviewer` + `awe-security-reviewer` in parallel — a fresh-context **adversarial** pass over the diff against the plan and acceptance criteria. Findings are severity-labeled (Critical ⇒ the iteration fails). *needs-fix* respawns the coder with `handoff.md` updated (context preserved); *verified* moves on; three unresolved rounds write `ESCALATION.md` and hand it to you.
+**5 — REVIEW** (`/awe-review <role>`). Runs scanners, then spawns `awe-reviewer` — a fresh-context **adversarial** pass over the diff against the spec, gherkin, and implementation plan. `awe-security-reviewer` is optional (`securityReview: true`). Findings are severity-labeled (Critical ⇒ the iteration fails). *needs-fix* respawns the coder; *verified* moves on; three unresolved rounds write `ESCALATION.md` and hand it to you.
 
 **6 — VERIFY** (`/awe-verify`) ▣ **human gate**. The `awe-verifier` subagent writes `verification.md`: numbered, by-hand test steps. You run them; a failure is stop-the-line → `/awe-regression`. On pass you set `verified: true` + initials + date, and the skill writes `awe-signoff.json`.
 
@@ -121,7 +121,7 @@ sequenceDiagram
     participant Orch as Orchestrator (main agent)
     participant Hooks as AWE Hooks
     participant Coder as awe-backend-dev (worktree)
-    participant Rev as awe-reviewer + awe-security-reviewer
+    participant Rev as awe-reviewer
     participant Files as plans/ + state files
     participant CI as CI (GitHub/GitLab)
 

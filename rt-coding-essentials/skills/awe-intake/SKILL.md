@@ -10,7 +10,7 @@ description: Start an AWE ticket — sanitize ticket input into plans/<ticket>/ 
 ## Procedure
 
 1. **Read config.** Load optional `awe.config.json` plus `.cursor/state/awe-discovered.json` (baseBranch, roles, test command). If neither exists yet, discover from the repo (origin/HEAD, package.json / pytest / go / cargo). Read `.cursor/state/awe-state.json`; if `active: true` for another ticket, STOP and ask the human to finish or abandon it first (one active ticket per repo).
-1b. **Memory MCP + graph.** If graph tools are missing, STOP (enable codebase-memory — one copy only). Follow `references/code-graph.md` before sanitizing a large ticket. Do not ask the human what to skip. Domain questions belong in DDD (`references/ddd.md`), not as skip-list interviews.
+1b. **Memory MCP + graph.** If graph tools are missing, STOP (enable codebase-memory — one copy only). Follow `references/code-graph.md` before sanitizing a large ticket. Do not ask the human what to skip. Architect questions are optional; coding agents will ask low-level questions later.
 2. **Acquire the ticket.**
    - If an argument is a ticket id (e.g. `PROJ-123`) and the matching ticket MCP is configured (Redmine/Jira/GitHub/GitLab), fetch title + description + acceptance criteria via MCP.
    - Otherwise ask the human to paste the ticket text.
@@ -35,7 +35,7 @@ createdAt: <ISO-8601>
 <anything you inferred — humans correct these in open-questions.md>
 ```
 
-5. **Write questions.** Ticket-only ambiguities → `plans/<ticket>/open-questions.md` (protocol below). **Who owns what / relations / bounded contexts** → `docs/domain-model/open-questions.md` (create via `ddd-domain-model` if needed) and put a pointer in the ticket file. Never ask what to `.cbmignore`.
+5. **Write questions.** Ticket-only ambiguities that block the **high-level** spec → `plans/<ticket>/open-questions.md`. If the ask is already observable, write none. **How to implement** (files, modules, mappings) is not an intake question — coding agents write `*.implementation-questions.md` after approve. Never ask what to `.cbmignore`.
 
 6. **Write state** `.cursor/state/awe-state.json` (create `.cursor/state/` if needed):
 

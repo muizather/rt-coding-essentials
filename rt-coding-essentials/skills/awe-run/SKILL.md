@@ -20,13 +20,13 @@ Human gates that still stop you:
 
 1. Read `.cursor/state/awe-state.json`. If `active: true` for another ticket, STOP and ask them to finish or abandon it.
 2. **Memory MCP (required).** If `list_projects` / `index_repository` / `search_graph` are missing, STOP: enable **codebase-memory** (one copy only — if a user MCP already works, leave the plugin copy off), reload, retry.
-3. Follow `references/code-graph.md` (git family, derive ignores, sequential `full` index, cross-repo-intelligence). Follow `references/ddd.md` when DDD artifacts are missing on a multi-repo workspace.
-4. Discovered settings are in `.cursor/state/awe-discovered.json` (sessionStart writes it). Honor optional `awe.config.json` if present. Use `baseBranch`, `commands.test`, and `roles` from there. If roles look wrong, ask once, then proceed.
+3. Follow `references/code-graph.md` (git family, derive ignores, sequential `full` index). Architect stays high-level; coding agents go file-grain.
+4. Discovered settings are in `.cursor/state/awe-discovered.json` (sessionStart writes it). Honor optional `awe.config.json` if present. Use `baseBranch`, `commands.test`, and `roles` (`backend` and/or `frontend` only) from there. If roles look wrong, ask once, then proceed.
 5. Optional: follow `references/mcp-report.md` when Slack/GitHub/GitLab tools exist.
 
 ## 1. Intake → architect
 
-Follow `/awe-intake` then `/awe-architect` in this chat (spawn `awe-architect`). Architect produces **spec + gherkin**, not file lists. If open questions block (ticket or DDD), write them, report, and **wait**.
+Follow `/awe-intake` then `/awe-architect` in this chat (spawn `awe-architect`). Architect produces **high-level spec + gherkin**, not file lists. If **architect** open questions block, write them, report, and **wait**. Zero architect questions is fine.
 
 ## 2. Approve (hard stop)
 
@@ -34,7 +34,7 @@ Follow `/awe-approve` validation. Ask **"Approve these plans? (yes/no)"**. Only 
 
 ## 3. Code → review loop
 
-For each discovered role, follow `/awe-code <role>` (worktree, handoff, spawn role dev). Then `/awe-review <role>` including the needs-fix respawn loop up to `reviewIterations`. Report review status if MCP tools exist.
+For each discovered role (`backend` / `frontend` only), follow `/awe-code <role>`. That skill **stops** if the coder left implementation questions open — wait for the human, then re-run `/awe-code`. Do not start `/awe-review` until implement mode has evidence. Then `/awe-review <role>` including the needs-fix respawn loop up to `reviewIterations`. Spawn `awe-security-reviewer` only when `securityReview` is true.
 
 When every role is reviewer-`verified`, set `phase: verify`.
 

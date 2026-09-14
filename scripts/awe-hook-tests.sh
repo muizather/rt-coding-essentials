@@ -85,6 +85,31 @@ write_evidence() {
 EOF
 }
 
+write_impl() {
+  local role="$1"
+  local open="${2:-}"
+  mkdir -p "$FIX/plans/PROJ-1"
+  cat > "$FIX/plans/PROJ-1/${role}.implementation.plan.md" <<EOF
+---
+status: ready
+---
+# ${role} implementation
+EOF
+  if [[ -n "$open" ]]; then
+    cat > "$FIX/plans/PROJ-1/${role}.implementation-questions.md" <<EOF
+# Implementation questions — ${role}
+- [ ] Q1: ${open}
+  GUESS: x
+  A:
+EOF
+  else
+    cat > "$FIX/plans/PROJ-1/${role}.implementation-questions.md" <<EOF
+# Implementation questions — ${role}
+No open questions.
+EOF
+  fi
+}
+
 write_signoff() {
   mkdir -p "$FIX/.cursor/state"
   cat > "$FIX/.cursor/state/awe-signoff.json" <<EOF
@@ -135,10 +160,12 @@ for j in "$ROOT/package.json" "$ROOT/template/.cursor/hooks.json" "$ROOT/templat
 done
 if grep -q 'name: ddd-domain-model' "$ROOT/rt-coding-essentials/skills/ddd-domain-model/SKILL.md" \
   && grep -q 'name: ddd-use-cases' "$ROOT/rt-coding-essentials/skills/ddd-use-cases/SKILL.md" \
-  && grep -q 'name: awe-repo-dev' "$ROOT/rt-coding-essentials/agents/awe-repo-dev.md"; then
-  pass "plugin ships DDD skills + awe-repo-dev"
+  && grep -q 'name: awe-backend-dev' "$ROOT/rt-coding-essentials/agents/awe-backend-dev.md" \
+  && grep -q 'name: awe-frontend-dev' "$ROOT/rt-coding-essentials/agents/awe-frontend-dev.md" \
+  && [[ ! -f "$ROOT/rt-coding-essentials/agents/awe-repo-dev.md" ]]; then
+  pass "plugin ships DDD skills + FE/BE agents (no repo-dev)"
 else
-  fail "plugin missing DDD or repo-dev"
+  fail "plugin missing DDD/FE/BE or still has repo-dev"
 fi
 if grep -q 'No file lists' "$ROOT/rt-coding-essentials/agents/awe-architect.md"; then
   pass "architect forbids file lists"
@@ -176,8 +203,25 @@ const repos = discoverGitRepos(d).map((r) => r.name).sort().join(',');
 const roles = discoverRoles(d).slice().sort().join(',');
 process.stdout.write(repos + '|' + roles);
 ")"
-if [[ "$FAM_OUT" == magento,nestjs\|magento,nestjs ]]; then pass "discover nested git family ($FAM_OUT)"; else fail "git family: $FAM_OUT"; fi
+if [[ "$FAM_OUT" == magento,nestjs\|backend ]]; then pass "discover nested git family ($FAM_OUT)"; else fail "git family: $FAM_OUT"; fi
 rm -rf "$FAM"
+
+echo "== Discover FE+BE across nested repos =="
+FAM2="$(mktemp -d /tmp/awe-fam2.XXXXXX)"
+mkdir -p "$FAM2/api" "$FAM2/web/src/app"
+git -C "$FAM2/api" init -q
+git -C "$FAM2/web" init -q
+printf '{"scripts":{"test":"go test"}}\n' > "$FAM2/api/go.mod"
+printf '{"dependencies":{"react":"19.0.0"}}\n' > "$FAM2/web/package.json"
+FAM2_OUT="$(env CURSOR_PROJECT_DIR="$FAM2" node --input-type=module -e "
+import { discoverGitRepos, discoverRoles } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+const d = process.env.CURSOR_PROJECT_DIR;
+const repos = discoverGitRepos(d).map((r) => r.name).sort().join(',');
+const roles = discoverRoles(d).slice().sort().join(',');
+process.stdout.write(repos + '|' + roles);
+")"
+if [[ "$FAM2_OUT" == api,web\|backend,frontend ]]; then pass "discover nested FE+BE roles ($FAM2_OUT)"; else fail "nested FE+BE: $FAM2_OUT"; fi
+rm -rf "$FAM2"
 
 echo "== Inactive (no state) =="
 rm -f "$FIX/.cursor/state/awe-state.json"
@@ -228,7 +272,18 @@ out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"docs/domain-model
 expect_allow "architect phase allows DDD open-questions" "$out"
 write_state true code approved approved
 out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"src/foo.ts","content":"x"}}')"
-expect_allow "code phase allows src write" "$out"
+expect_deny "code phase blocks src before impl plan" "$out"
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"plans/PROJ-1/backend.implementation.plan.md","content":"---\nstatus: draft\n---\n"}}')"
+expect_allow "code phase allows implementation plan write" "$out"
+write_impl backend
+write_impl frontend "which component"
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"src/foo.ts","content":"x"}}')"
+expect_allow "code phase allows backend src when backend questions closed" "$out"
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"src/app/Page.tsx","content":"x"}}')"
+expect_deny "code phase blocks frontend src while FE questions open" "$out"
+write_impl frontend
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"src/app/Page.tsx","content":"x"}}')"
+expect_allow "code phase allows frontend src when FE questions closed" "$out"
 
 echo "== Plan-clobber =="
 write_state true code approved approved
@@ -342,11 +397,12 @@ out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-backend-dev"}')"
 expect_deny "backend-dev denied when plan draft" "$out"
 write_state true code approved approved
 out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-repo-dev"}')"
-expect_allow "repo-dev allowed in code+approved" "$out"
+expect_deny "repo-dev denied (not a core agent)" "$out"
 write_state true architect draft draft
 out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-repo-dev"}')"
 expect_deny "repo-dev denied in architect" "$out"
 write_state true code approved approved
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-architect"}')"
 expect_deny "architect denied in code" "$out"
 write_state true architect approved approved
 out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-architect"}')"

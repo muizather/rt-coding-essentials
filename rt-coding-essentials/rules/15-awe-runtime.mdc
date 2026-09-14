@@ -13,7 +13,7 @@ On first use in a workspace, settings live in `.cursor/state/awe-discovered.json
 
 - **baseBranch** — `origin/HEAD`, else `main` / `master` / `develop`, else the current branch
 - **commands.test** — this repo's actual test script (`package.json` / `pytest` / `go test` / `cargo test` / `make test` / wrappers). Never assume `npm test` without looking
-- **roles** — `backend` and/or `frontend` from the tree; default `backend`
+- **roles** — `backend` and/or `frontend` from the tree; default `backend`. Never child-repo folder names.
 
 If `awe.config.json` exists, its fields win. Hooks read the merged result via `loadConfig`.
 
@@ -25,9 +25,9 @@ Before architecture or coding, follow `skills/references/code-graph.md`:
 
 1. If graph tools are missing → **STOP**. Enable **one** codebase-memory server, reload.
 2. Discover the git family; derive `.cbmignore` (do not interview); sequential `index_repository` `mode: "full"`; then `cross-repo-intelligence` when there are two or more members.
-3. Plan against the graph at the grain the role allows: **architect** = root (projects, routes, CROSS_*); **coder** = that repo’s files. File grep is fallback only after a coverage miss.
+3. Plan against the graph at the grain the role allows: **architect** = root (projects, routes, CROSS_*); **coder** = this repo’s files. File grep is fallback only after a coverage miss.
 
-This plugin also ships **DDD** (`ddd-domain-model` and companions). The architect **must** read `docs/domain-model/` when it exists, and run DDD Phase 0–1 when a multi-repo workspace has no manifest. See `skills/references/ddd.md`. Domain questions live in DDD `open-questions.md`; ticket questions in `plans/<ticket>/open-questions.md`.
+Coding agents (`awe-backend-dev`, `awe-frontend-dev`) must learn the **actual code** before they write an implementation plan. If `docs/domain-model/` exists they should read the relevant context; they must not skip the graph. The architect does **not** run a DDD reverse-engineering pass as part of every ticket.
 
 Do not quietly degrade to "search the tree and hope."
 

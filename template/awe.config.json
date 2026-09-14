@@ -16,6 +16,7 @@
     "gmail": false
   },
   "strictSecurity": false,
+  "securityReview": false,
   "envUrls": {},
   "deployCommands": {},
   "_awe": {

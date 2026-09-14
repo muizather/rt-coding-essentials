@@ -7,6 +7,19 @@ The **platform architect** does **not** use this template. Architect output is `
 
 **Coding agents** emit `implementation.plan.md` with this task contract (files + **unit tests**). Gherkin under `plans/<ticket>/e2e/` is the feature E2E bar and is not duplicated here.
 
+Always also write `plans/<ticket>/<role>.implementation-questions.md` in the same pass. The write-gate blocks application source until that file exists and has no open `- [ ]`. Zero questions is valid (`No open questions.`).
+
+## Security check (training cutoff)
+
+Before listing a third-party package or a copied snippet in **Files likely touched** / new dependencies, search **today's** OSV / NVD / GitHub Advisories for that name and version. Record:
+
+```markdown
+## Security check
+- `package@version` — searched <source> on <date> — <clean | CVE-… patched in …>
+```
+
+A model does not know about a vuln published after its training date until it looks it up. If a patch already exists, plan for the patched version.
+
 ## Slice vertically, order by dependency
 
 Build one complete feature path at a time, not all-database-then-all-API-then-all-UI. Implementation order follows the dependency graph bottom-up (foundations first). Each task leaves the system in a working state; put a verification checkpoint after every 2–3 tasks and put high-risk tasks early (fail fast).
@@ -69,4 +82,4 @@ Before writing a plan that already exists with unchecked tasks: **same work bein
 
 ## Plan frontmatter (AWE)
 
-Each `implementation.plan.md` (and legacy `<role>.plan.md`) carries frontmatter `status: draft | questions-open | approved`. **Specs** (`spec.md`) are what `/awe-approve` flips. Implementation plans are written in the **code** phase by coding agents and are not the approve gate.
+Each `implementation.plan.md` carries frontmatter `status: draft | questions-open | ready`. **Specs** (`<role>.spec.md`) are what `/awe-approve` flips to `approved`. Implementation plans are written in the **code** phase by coding agents. `ready` means questions are closed and source may be written; it is not a second architect approval.

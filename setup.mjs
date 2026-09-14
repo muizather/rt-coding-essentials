@@ -259,7 +259,7 @@ function makePrompter() {
   };
 }
 
-const ROLE_CHOICES = ['backend', 'frontend', 'infra'];
+const ROLE_CHOICES = ['backend', 'frontend'];
 const TICKET_CHOICES = ['none', 'redmine', 'jira', 'github', 'gitlab'];
 
 async function gatherAnswers(p) {

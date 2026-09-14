@@ -4,15 +4,15 @@
     "name": "Muiz Athar"
   },
   "metadata": {
-    "description": "RT Coding Essentials — phase-gated multi-agent workflow for Cursor",
-    "version": "0.2.0"
+    "description": "RT Coding Essentials — phase-gated multi-agent workflow for frontend and backend",
+    "version": "0.3.0"
   },
   "plugins": [
     {
       "name": "rt-coding-essentials",
       "source": "rt-coding-essentials",
       "displayName": "RT Coding Essentials",
-      "description": "RT Coding Essentials — phase-gated multi-agent pipeline with hooks, codebase-memory graph, and optional Slack/GitHub/GitLab reporting."
+      "description": "RT Coding Essentials — phase-gated multi-agent pipeline for frontend and backend, with hooks and a codebase-memory graph."
     }
   ]
 }

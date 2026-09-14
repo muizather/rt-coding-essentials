@@ -20,6 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   runHook, respond, loadState, isActive, projectDir, extractFilePath, extractToolContent, relPath,
+  sourceWriteAllowedInCodePhase,
 } from './lib/state.mjs';
 import { audit } from './lib/audit.mjs';
 
@@ -44,7 +45,7 @@ const ALWAYS_WRITABLE = [
 // ── Rule 3 helpers: plan-clobber guard ─────────────────────────────────────
 const PLAN_FILE = /(?:^|\/)plans\/[^/]+\/(?:architecture\.md|spec\.md|[^/]+\.spec\.md|[^/]+\.plan\.md|[^/]*implementation\.plan\.md)$/;
 // Statuses where a plan is still being drafted and may be freely rewritten.
-const PLAN_OPEN_STATUSES = new Set(['draft', 'questions-open']);
+const PLAN_OPEN_STATUSES = new Set(['draft', 'questions-open', 'ready']);
 
 /** Frontmatter `status:` of a plan file, or null. */
 function planStatus(text) {
@@ -144,7 +145,33 @@ await runHook(async (input) => {
     });
   }
 
-  // --- code / review / verify / ship / done: allow (role scope is enforced by
+  // --- code: source writes need an implementation plan + answered questions ----
+  if (state.phase === 'code') {
+    if (ALWAYS_WRITABLE.some((re) => re.test(rel))) {
+      return respond({ permission: 'allow' });
+    }
+    if (!sourceWriteAllowedInCodePhase(dir, state, rel)) {
+      const ticket = state.ticket ?? '<ticket>';
+      audit(dir, 'preToolUse', 'deny', `phase=code: implementation plan/questions not ready`, {
+        path: rel, ticket, phase: state.phase,
+      });
+      return respond({
+        permission: 'deny',
+        agent_message:
+          `Phase is code but this role's implementation plan is not ready. Write ` +
+          `plans/${ticket}/<role>.implementation.plan.md and ` +
+          `plans/${ticket}/<role>.implementation-questions.md first. ` +
+          `If that questions file has open \`- [ ]\` boxes, STOP for the human — ` +
+          `do not write application source until every box is checked. ` +
+          `Re-run /awe-code <role> after they answer.`,
+        user_message:
+          `AWE blocked a source write: the ${ticket} implementation plan still has ` +
+          `open questions (or is missing). Answer them in plans/${ticket}/ then continue.`,
+      });
+    }
+  }
+
+  // --- review / verify / ship / done: allow (role scope is enforced by
   //     subagent-gate + reviewer scope rules; keep the hard gate simple) --------
   return respond({ permission: 'allow' });
 }, { onError: 'closed' });

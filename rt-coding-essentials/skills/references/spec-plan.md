@@ -2,30 +2,31 @@
 
 Two different brains. Do not collapse them.
 
-## Platform architect (spec)
+## Architect (high-level spec)
 
-Sees: ticket intake, DDD, graph at **root grain** (projects, clusters, route/channel names, CROSS_* edges). Does **not** list source files or unit tests.
+Sees: ticket intake, graph at **root grain** (projects, clusters, route/channel names). Does **not** list source files or unit tests. Open questions are optional.
 
 Writes:
 
-1. `plans/<ticket>/architecture.md` — in-scope contexts, chosen approach + rejected alternatives, **which child repos**, contracts (APIs / events / ownership), risks. No file lists.
-2. `plans/<ticket>/e2e/*.feature` — **Gherkin end-to-end** scenarios for the feature (happy path + important failures). These are the high-level tests of the spec. **Not** unit tests.
-3. One spec slice per assignee, in **that repo’s plan folder**:
-   - Multi-git family: `<repo>/plans/<ticket>/spec.md`
-   - Single git (roles backend/frontend): `plans/<ticket>/<role>.spec.md`
+1. `plans/<ticket>/architecture.md` — chosen approach + rejected alternatives, **backend vs frontend**, contracts (APIs / events / ownership), risks. No file lists.
+2. `plans/<ticket>/e2e/*.feature` — **Gherkin end-to-end** scenarios for the feature. High-level tests of the spec. **Not** unit tests.
+3. One spec slice per role: `plans/<ticket>/backend.spec.md` and/or `plans/<ticket>/frontend.spec.md`
 
-`spec.md` says **what** that repo owes (behavior, contract side, which gherkin scenarios it must satisfy). Still no file paths, no unit-test names.
+`spec.md` says **what** that role owes (behavior, contract side, which gherkin it must satisfy). Still no file paths, no unit-test names.
 
-Human approves **architecture + specs + gherkin**. That unlocks code.
+Human approves **architecture + specs + gherkin**. That unlocks the code phase — not application source yet.
 
-## Repo coding agent (implementation)
+## Coding agent (low-level implementation)
 
-Sees: approved spec for **its** repo, the contract, the gherkin scenarios it must enable, and the **full graph of that repo only**.
+Sees: approved spec for **its** role, the contract, the gherkin, and the **full graph of this repo** (file grain). If `docs/domain-model/` exists, use it; otherwise learn the domain from the graph.
 
-Writes `<repo>/plans/<ticket>/implementation.plan.md` (or `plans/<ticket>/<role>.implementation.plan.md` in a single repo) **before** coding: files, unit tests, how. Unit tests are derived here — they are not the architect’s gherkin.
+Writes, **before any application source**:
+
+1. `plans/<ticket>/<role>.implementation.plan.md` — files, unit tests, how, plus a **Security check** (today's advisories for packages it will use).
+2. `plans/<ticket>/<role>.implementation-questions.md` — low-level questions for the human, or `No open questions.` A task cannot start while any `- [ ]` is open. The write-gate hook enforces this.
 
 Then implements test-first against that implementation plan.
 
 ## Reviewer
 
-Functional review is against **gherkin + spec AC + contract**, not against “the whole codebase.” The reviewer does not need Magento+Nest+blog in context. Security review still reads **this repo’s diff**. Unit tests are the coder’s proof; gherkin is the spec bar the human verify step also uses.
+Functional review is against **gherkin + spec AC + contract + the implementation plan**, not against “the whole codebase.” The reviewer writes a short testing plan from those artifacts, then hunts the diff. Optional `awe-security-reviewer` runs only when `securityReview` is true. Unit tests are the coder’s proof; gherkin is the spec bar the human verify step also uses.

@@ -86,7 +86,8 @@ your-project/
     ├── agents/                     # AWE-managed subagents
     │   ├── awe-architect.md            (read-only planner)
     │   ├── awe-backend-dev.md / awe-frontend-dev.md
-    │   ├── awe-reviewer.md / awe-security-reviewer.md
+    │   ├── awe-reviewer.md
+    │   ├── awe-security-reviewer.md   (optional — spawned only when securityReview: true)
     │   └── awe-verifier.md             (writes your human test script)
     ├── skills/                     # /awe-run /awe-intake /awe-architect /awe-approve /awe-code
     │   ├── …                       # /awe-review /awe-verify /awe-ship /awe-regression /awe-remember
@@ -166,7 +167,7 @@ Then (setup path): **trust the workspace** when Cursor asks, **restart Cursor**,
 That's it. Non-interactive install for your whole team:
 
 ```bash
-node ~/agentic-coding/setup.mjs --yes --set baseBranch=main --set roles=backend,frontend,infra --ci github
+node ~/agentic-coding/setup.mjs --yes --set baseBranch=main --set roles=backend,frontend --ci github
 ```
 
 Other flags: `--dry-run` (show everything, write nothing) · `--target <dir>` · `--force` (overwrite locally-modified managed files) · `--uninstall`.
@@ -219,7 +220,7 @@ When you're done experimenting: `/awe-regression` is how a post-merge bug re-ent
 /awe-architect
 ```
 
-Spawns the read-only `awe-architect` subagent: it studies your repo (memory MCP when available), then writes `architecture.md` (approach + rejected alternatives + **cross-role contract**) and one `<role>.plan.md` per enabled role — every step naming real files, every plan buildable against contract stubs so roles never block each other.
+Spawns the read-only `awe-architect` subagent: it studies your repo (memory MCP when available), then writes `architecture.md` (approach + rejected alternatives + **cross-role contract**) and one `<role>.spec.md` per enabled role (`backend` / `frontend`). The spec is **high-level** — no source file lists. Coding agents decide files after you approve.
 
 ### Phase 3 — APPROVE ▣ *human gate*
 
@@ -236,7 +237,7 @@ AWE verifies every open question is answered and every cross-role dependency ack
 /awe-code frontend     # in another chat, in parallel
 ```
 
-Each role gets its own **git worktree** and branch `awe/PROJ-123-<role>` cut from your base branch, plus a `handoff.md` brief. The role dev implements only its approved plan, builds cross-role needs against contract stubs (its scope runs green independently), writes the named unit tests, runs your configured test command, and writes fresh evidence to `.cursor/state/awe-evidence.json`. Try to end the session without that evidence and the `stop` hook sends the agent back to work.
+Each role gets its own **git worktree** and branch `awe/PROJ-123-<role>` cut from your base branch, plus a `handoff.md` brief. The role dev first writes a **low-level** `implementation.plan.md` (files, unit tests, today's advisory search for any package it will use) and `implementation-questions.md`. Open implementation questions **block source writes** (hook) until you answer them. Then it implements only its approved spec, builds cross-role needs against contract stubs, writes the named unit tests, runs your test command, and writes fresh evidence to `.cursor/state/awe-evidence.json`. Try to end the session without that evidence and the `stop` hook sends the agent back to work.
 
 ### Phase 5 — REVIEW
 
@@ -244,11 +245,11 @@ Each role gets its own **git worktree** and branch `awe/PROJ-123-<role>` cut fro
 /awe-review backend
 ```
 
-Scanners run (built-in secrets always; gitleaks/semgrep/osv-scanner when installed). Then `awe-reviewer` (functional) and `awe-security-reviewer` (adversarial) review the diff **in parallel**, producing structured JSON findings (`file`, `line`, `severity`, `category`, `evidence`, `suggested_fix`) plus a verdict.
+Scanners run (built-in secrets always; gitleaks/semgrep/osv-scanner when installed). Then `awe-reviewer` (functional) reviews the diff, producing structured JSON findings plus a verdict. `awe-security-reviewer` runs **only when** `securityReview` is `true` in `awe.config.json` (default **false**). Coding agents already search current advisories before adding packages — that is the default security bar.
 
 - `needs-fix` → findings go into `handoff.md`, the coder is respawned. Up to **3 iterations** (your configured `reviewIterations`).
 - Budget exhausted → `plans/PROJ-123/ESCALATION.md` and a stop for **your** decision. Never silent shipping.
-- `verified` from both → role marked verified; when all roles pass, phase becomes `verify`.
+- `verified` from the required reviewer(s) → role marked verified; when all roles pass, phase becomes `verify`.
 
 Reviewers only judge a role's own scope — the frontend is never failed because the backend API doesn't exist yet; the contract stub is the correct artifact.
 
@@ -298,7 +299,8 @@ Not required. Session start writes `.cursor/state/awe-discovered.json` (base bra
 |---|---|---|
 | `projectName` | dir name | Display name used in reports |
 | `baseBranch` | `develop` | Branches `awe/<ticket>-*` are cut from here; PRs target it |
-| `roles` | `["backend","frontend"]` | Which role plans/devs/reviews exist (`backend`, `frontend`, `infra`) |
+| `roles` | `["backend","frontend"]` | Which role plans/devs/reviews exist (`backend`, `frontend`) |
+| `securityReview` | `false` | When `true`, `/awe-review` also spawns `awe-security-reviewer`. Default off. |
 | `commands.test` | discovered | Must exit 0 when green. Optional file overrides `.cursor/state/awe-discovered.json` |
 | `commands.lint` | `npm run lint` | Run before each review round |
 | `reviewIterations` | `3` | needs-fix rounds per ticket before human escalation |
@@ -317,7 +319,7 @@ Hooks are small Node scripts (spawned per event, JSON in → JSON out, zero deps
 
 | Cursor event | Script | Hard/Soft | What it blocks / injects |
 |---|---|---|---|
-| `preToolUse` (Write/Edit/StrReplace/Delete/MultiEdit) | `pre-tool-gate.mjs` | **HARD** (failClosed) | Always: writes to `.cursor/hooks*`, `awe.config.json`. While planning: any write outside `plans/` & `.cursor/state/`. Always while active: overwriting an approved plan (appends and status flips stay allowed) |
+| `preToolUse` (Write/Edit/StrReplace/Delete/MultiEdit) | `pre-tool-gate.mjs` | **HARD** (failClosed) | Always: writes to `.cursor/hooks*`, `awe.config.json`. While planning: any write outside `plans/` & `.cursor/state/`. In `code`: application source blocked until that role's `implementation.plan.md` + `implementation-questions.md` have no open `- [ ]`. Always while active: overwriting an approved spec (appends and status flips stay allowed) |
 | `preToolUse` (Write/Edit/StrReplace/Delete/MultiEdit) | `constraints-guard.mjs` | advisory (fail-open) | Edits to `CONSTRAINTS.md` that remove/weaken a threshold — the quality bar is human-owned |
 | `beforeShellExecution` | `before-shell.mjs` | **HARD** (failClosed) | Always: force-push, `npm publish`, `curl\|sh`, `rm -rf /`, metadata IPs, reading `.aws/.ssh/.env`. While active: `git push` denied outside ship; in ship, allowed only from `awe/<ticket>-*` with verified signoff + fresh evidence |
 | `beforeReadFile` | `before-read.mjs` | HARD (fail-open) | Reads of `.env*`, `**/.aws/**`, `**/.ssh/**`, `**/secrets/**` |

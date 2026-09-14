@@ -6,10 +6,10 @@ Every ticket gets a folder `plans/<ticket>/`. It is the single source of truth f
 
 ```
 /awe-intake PROJ-123     → plans/PROJ-123/intake.md + open-questions.md
-/awe-architect           → architecture.md + <role>.plan.md (per role)
-/awe-approve             → plan frontmatter flips to status: approved, approvals.md
-/awe-code backend        → handoff.md (shared brief, updated each review round)
-/awe-review backend      → reviews/round-1.md (+ <role>-functional/-security-round-N.md)
+/awe-architect           → architecture.md + <role>.spec.md (per role)
+/awe-approve             → spec frontmatter flips to status: approved, approvals.md
+/awe-code backend        → implementation.plan.md + implementation-questions.md, then code (questions must be closed)
+/awe-review backend      → reviews/round-1.md (+ optional security round when securityReview: true)
 /awe-verify              → verification.md  (human signs frontmatter)
 /awe-ship                → pr-body.md (when no git MCP is configured)
 /awe-regression "..."    → plans/PROJ-123-R1/ (links back to the original folder)
