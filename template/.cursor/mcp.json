@@ -26,7 +26,7 @@
       "headers": { "Authorization": "Bearer <GITLAB_TOKEN — read_api + write_repository only>" }
     },
     "redmine": {
-      "_why": "Ticket intake from Redmine (matches ticketSystem: redmine in awe.config.json).",
+      "_why": "Ticket intake from Redmine (matches ticketSystem: redmine in awe.config.json). A read-only key is enough for intake. Status comments on the originating issue need a key that can add notes — enable that only if you want /awe-review and /awe-verify to write back.",
       "command": "npx",
       "args": ["-y", "redmine-mcp-server"],
       "env": {

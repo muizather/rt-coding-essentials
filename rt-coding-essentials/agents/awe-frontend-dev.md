@@ -47,4 +47,8 @@ If there are no open boxes: set plan `status: ready`. If the spawn brief is `mod
 
 ## Finish
 
-Run `commands.test`; write `awe-evidence.json`; append `handoff.md`. Point the human at the **gherkin** scenarios.
+Run `commands.test`; write `awe-evidence.json`; append `handoff.md`.
+
+If this spawn is a **review fix round** (handoff lists prior findings): write `plans/<ticket>/reviews/round-<N>-response.md` — one row per finding: **fixed** (what changed + test proof), **rebutted** (pointer to the rebuttal file), or **deferred** (why). Silent ignore is a constitution violation. Append the same table to `handoff.md` and a bullet block to `plans/<ticket>/ticket-updates.md`.
+
+Point the human at the **gherkin** scenarios.

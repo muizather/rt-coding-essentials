@@ -25,7 +25,7 @@ Apply this to every change before declaring it done.
 
 ### Correctness
 - [ ] All acceptance criteria for the task are met
-- [ ] Code runs and behaves as intended, verified at runtime (VERIFY: Playwright Gherkin on localhost with video/trace), not just compiled or typechecked
+- [ ] Code runs and behaves as intended, verified at runtime (VERIFY: Playwright Gherkin on localhost with HTML report + video/trace), not just compiled or typechecked
 - [ ] New behavior is covered by tests that fail without the change and pass with it
 - [ ] Existing tests still pass; no regressions introduced
 - [ ] Edge cases and error paths are handled, not just the happy path

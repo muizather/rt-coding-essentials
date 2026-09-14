@@ -11,8 +11,10 @@
   },
   "scripts": {
     "setup": "node setup.mjs",
-    "check": "node --check setup.mjs && for f in rt-coding-essentials/scripts/*.mjs rt-coding-essentials/scripts/lib/*.mjs; do node --check \"$f\"; done && node --input-type=module -e \"import fs from 'node:fs'; for (const p of ['.cursor-plugin/marketplace.json','rt-coding-essentials/.cursor-plugin/plugin.json','rt-coding-essentials/mcp.json','rt-coding-essentials/hooks/hooks.json']) JSON.parse(fs.readFileSync(p,'utf8'));\"",
-    "test:hooks": "bash scripts/awe-hook-tests.sh"
+    "check": "node --check setup.mjs && node --check scripts/update-marketplace-cache.mjs && for f in rt-coding-essentials/scripts/*.mjs rt-coding-essentials/scripts/lib/*.mjs; do node --check \"$f\"; done && node --input-type=module -e \"import fs from 'node:fs'; for (const p of ['.cursor-plugin/marketplace.json','rt-coding-essentials/.cursor-plugin/plugin.json','rt-coding-essentials/mcp.json','rt-coding-essentials/hooks/hooks.json']) JSON.parse(fs.readFileSync(p,'utf8'));\"",
+    "test:hooks": "bash scripts/awe-hook-tests.sh",
+    "marketplace:cache": "node scripts/update-marketplace-cache.mjs",
+    "marketplace:cache:check": "node scripts/update-marketplace-cache.mjs --check"
   },
   "keywords": [
     "cursor",

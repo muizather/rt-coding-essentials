@@ -9,8 +9,8 @@ Every ticket gets a folder `plans/<ticket>/`. It is the single source of truth f
 /awe-architect           → architecture.md + <role>.spec.md (per role)
 /awe-approve             → spec frontmatter flips to status: approved, approvals.md
 /awe-code backend        → implementation.plan.md + implementation-questions.md, then code (questions must be closed)
-/awe-review backend      → reviews/round-1.md (+ optional security round when securityReview: true)
-/awe-verify              → verification.md  (human signs frontmatter)
+/awe-review backend      → reviews/round-1.md + round-1-response.md after the coder replies
+/awe-verify              → verification.md + e2e/run-verify.sh (human signs frontmatter; HTML report is the combined viewer)
 /awe-ship                → pr-body.md (when no git MCP is configured)
 /awe-regression "..."    → plans/PROJ-123-R1/ (links back to the original folder)
 ```
@@ -22,6 +22,7 @@ Every ticket gets a folder `plans/<ticket>/`. It is the single source of truth f
 ---
 ticket: PROJ-123
 source: manual | mcp:redmine | mcp:jira | mcp:github | mcp:gitlab
+remoteId: 12345   # omit when source is manual
 createdAt: 2026-09-08T12:00:00Z
 dependsOn: []
 ---
@@ -65,11 +66,20 @@ The brief a dev subagent reads first: plan pointer, contract pointer, iteration 
 ### reviews/round-&lt;N&gt;.md
 Scanner output + both reviewers' JSON verdicts + combined findings table for round N.
 
+### reviews/round-&lt;N&gt;-response.md
+Coder disposition of that round: each finding → **fixed** / **rebutted** / **deferred**, with proof. Required before the next review round.
+
+### ticket-updates.md
+Append-only journal (review/verify/ship bullets). Copied to the originating Redmine/Jira/GitHub/GitLab ticket when a write-comment MCP exists.
+
 ### verification.md
-Numbered human test steps plus paths to the Playwright **video** (UI) and/or **trace** (API). Frontmatter `verified: false` → the human flips it to `true` with initials + date after watching the recording.
+Numbered human test steps plus paths to the Playwright **HTML report** (combined viewer), **video** (UI), and/or **trace** (API). Frontmatter `verified: false` → the human flips it to `true` with initials + date after watching the report.
 
 ### local-run.md
 Per-ticket slice: which local services are up, what is mocked/skipped, which gherkin scenarios Playwright will run. Generated during VERIFY from discovered `local` start commands.
+
+### e2e/run-verify.sh
+Portable re-run of this ticket's Playwright suite. No sandbox browser paths.
 
 ### ESCALATION.md
 Written when the review budget is exhausted: unresolved findings, what was tried, recommended human decision.

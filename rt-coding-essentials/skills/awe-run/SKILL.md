@@ -4,7 +4,7 @@ description: >-
   Run the AWE pipeline from a ticket or task through coding and review until
   tests are green. Use when the user describes a feature, bug, ticket id, or
   asks to implement something end-to-end. Stops for explicit human yes at
-  approve and for verify (watch Playwright recording, then sign). Requires
+  approve and for verify (watch Playwright HTML report, then sign). Requires
   codebase-memory MCP.
 ---
 
@@ -15,7 +15,7 @@ description: >-
 Human gates that still stop you:
 
 1. **APPROVE** — after architecture, present the summary and wait for an explicit **yes**. Hedges are not approval (`/awe-approve` procedure).
-2. **VERIFY** — after review is green, follow `/awe-verify`: Playwright from Gherkin on localhost, coder loop if it fails, then wait for the human to watch the recording and sign. Then you may `/awe-ship` if they want.
+2. **VERIFY** — after review is green, follow `/awe-verify`: Playwright from Gherkin on localhost, coder loop if it fails, then wait for the human to open the HTML report and sign. Then you may `/awe-ship` if they want.
 
 ## 0. Bootstrap (every run)
 
@@ -26,7 +26,7 @@ Human gates that still stop you:
 2. **Memory MCP (required).** If `list_projects` / `index_repository` / `search_graph` are missing, STOP: enable **codebase-memory** (one copy only — if a user MCP already works, leave the plugin copy off), reload, retry.
 3. Follow `references/code-graph.md` (git family, derive ignores, sequential `full` index). Architect stays high-level; coding agents go file-grain.
 4. Discovered settings are in `.cursor/state/awe-discovered.json` (sessionStart writes it). Honor optional `awe.config.json` if present. Use `baseBranch`, `commands.test`, and `roles` (`backend` and/or `frontend` only) from there. If roles look wrong, ask once, then proceed.
-5. Optional: follow `references/mcp-report.md` when Slack/GitHub/GitLab tools exist.
+5. Optional: follow `references/mcp-report.md` when Slack or ticket-system MCP tools exist. Always append `plans/<ticket>/ticket-updates.md`.
 
 ## 1. Intake → architect
 
@@ -44,7 +44,7 @@ When every role is reviewer-`verified`, set `phase: verify`.
 
 ## 4. Verify (hard stop)
 
-Follow `/awe-verify`: spawn `awe-verifier` (Playwright from Gherkin, localhost), loop needs-fix to the coder up to `reviewIterations`, then hand video/trace + `verification.md` to the human. Wait until frontmatter `verified: true` with initials + date, then write signoff and `phase: ship`. Do not push before that.
+Follow `/awe-verify`: spawn `awe-verifier` (Playwright from Gherkin, localhost), loop needs-fix to the coder up to `reviewIterations`, then hand the **HTML report** + verify-folder README + `verification.md` to the human. Wait until frontmatter `verified: true` with initials + date, then write signoff and `phase: ship`. Do not push before that.
 
 ## 5. Ship + knowledge
 

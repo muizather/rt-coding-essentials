@@ -1,12 +1,12 @@
 ---
 name: awe-verify
-description: Runtime E2E gate — Playwright from Gherkin on localhost, coder loop up to 3, then video/trace + human steps. Usage: /awe-verify
+description: Runtime E2E gate — Playwright from Gherkin on localhost, coder loop up to 3, then HTML report + video/trace + human steps. Usage: /awe-verify
 disable-model-invocation: true
 ---
 
 # awe-verify
 
-**Purpose.** The second human gate. Automated unit green and a reviewer verdict are not done — the verifier **runs** the architect Gherkin/AC locally with Playwright, may send the coder back, then you watch the recording and sign. Phase after success: `ship`. Follow `references/verify-e2e.md`.
+**Purpose.** The second human gate. Automated unit green and a reviewer verdict are not done — the verifier **runs** the architect Gherkin/AC locally with Playwright, may send the coder back, then you watch the **HTML report** (all scenarios in one UI) and sign. Phase after success: `ship`. Follow `references/verify-e2e.md`.
 
 ## Procedure
 
@@ -14,12 +14,16 @@ disable-model-invocation: true
 2. **Playwright present?** If the app has no `@playwright/test@1.61.0`, ask to add it as a devDependency and run `npx playwright install chromium`. No yes → STOP. Do not invent another runner.
 3. **Spawn `awe-verifier`.** Brief: ticket, intake/architecture/gherkin/specs/handoffs/reviews, discovered `local` (not staging `envUrls`).
 4. **Act on the runtime verdict.**
-   - **needs-fix AND `verifyIteration < reviewIterations`** (default 3, independent of review rounds) → increment `tickets.<id>.verifyIteration`, append findings to `handoff.md`, set this ticket `phase: code`, respawn the matching coder via `/awe-code <role>`. After fixes + fresh `awe-evidence.json`, set `phase: verify` and spawn the verifier again.
+   - **needs-fix AND `verifyIteration < reviewIterations`** (default 3, independent of review rounds) → increment `tickets.<id>.verifyIteration`, append findings to `handoff.md` and `ticket-updates.md`, set this ticket `phase: code`, respawn the matching coder via `/awe-code <role>`. After fixes + fresh `awe-evidence.json`, set `phase: verify` and spawn the verifier again.
    - **needs-fix AND budget reached** → `plans/<ticket>/ESCALATION.md`, tell the human, STOP.
-   - **playwright green** → confirm `.cursor/state/awe-verify-evidence.json` (`playwrightPassed: true`, video and/or trace paths, fresh `at`) and `plans/<ticket>/verification.md` with `verified: false`, recording links, numbered human steps 1:1 with gherkin.
+   - **playwright green** → confirm `.cursor/state/awe-verify-evidence.json` (`playwrightPassed: true`, portable `command`, `htmlReport`, video and/or trace paths, fresh `at`); `plans/<ticket>/e2e/run-verify.sh`; `plans/<ticket>/verification.md` with `verified: false`, numbered human steps 1:1 with gherkin; `.cursor/state/verify/<ticket>/README.md` next to the traces. Append a short bullet block to `plans/<ticket>/ticket-updates.md`. Follow `references/mcp-report.md` if ticket/Slack tools exist.
 5. **Hand it to the human:**
 
-> Your move. Watch the recording (video under `.cursor/state/verify/<ticket>/` for UI; `npx playwright show-trace <trace.zip>` for API). Optionally walk the numbered steps in `plans/<ticket>/verification.md`. If it matches: set `verified: true`, initials, today's date in the frontmatter, then tell me. I'll write signoff and move to ship. If anything fails: `/awe-regression <what broke>` — don't hand-fix code now.
+> Your move. Open the **combined HTML report** first — every scenario, video, and trace in one UI:
+>
+> `npx playwright show-report .cursor/state/verify/<ticket>-html-report`
+>
+> The folder `.cursor/state/verify/<ticket>/README.md` repeats what was verified, the localhost URL, and how to re-run (`bash plans/<ticket>/e2e/run-verify.sh`). Optionally walk the numbered steps in `plans/<ticket>/verification.md`. If it matches: set `verified: true`, initials, today's date in that frontmatter, then tell me. I'll write signoff and move to ship. If anything fails: `/awe-regression <what broke>` — don't hand-fix code now.
 
 6. **Complete signoff when the human says it's done.** Re-read `verification.md`; if `verified: true` with initials and date, write `.cursor/state/awe-signoff.json`:
 

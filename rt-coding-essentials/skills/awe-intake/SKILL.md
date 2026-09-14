@@ -25,6 +25,7 @@ description: Start an AWE ticket — sanitize ticket input into plans/<ticket>/ 
 ---
 ticket: <ticket-id>
 source: <mcp:redmine|jira|github|gitlab | manual>
+remoteId: <issue/ticket id when source is MCP; omit for manual>
 createdAt: <ISO-8601>
 dependsOn: []   # other plan ids this work cannot implement until they are phase=done
 ---
@@ -64,7 +65,7 @@ dependsOn: []   # other plan ids this work cannot implement until they are phase
 
    Copy `dependsOn` from intake frontmatter into `tickets.<id>.dependsOn`. Empty array if independent. Top-level `ticket`/`phase`/`roles` are the **session focus** (this intake); hooks gate **per ticket**.
 
-7. **Tell the human**: where `open-questions.md` lives, how many questions need answers, and that they can answer at their own pace then run `/awe-intake --resume <ticket-id>` — or continue with `/awe-architect` / `/awe-run` now if there are no blocking questions. If Slack/GitHub/GitLab MCP tools exist, follow `references/mcp-report.md`.
+7. **Tell the human**: where `open-questions.md` lives, how many questions need answers, and that they can answer at their own pace then run `/awe-intake --resume <ticket-id>` — or continue with `/awe-architect` / `/awe-run` now if there are no blocking questions. Start `plans/<ticket>/ticket-updates.md`. Follow `references/mcp-report.md` (journal always; ticket/Slack comment if those tools exist).
 
 ## Questioning protocol (async interview)
 

@@ -23,7 +23,7 @@
 - **Hook** — a small script Cursor runs around an agent action (write a file, run a shell command, spawn a subagent, end a session) that can allow or deny it. AWE's hard enforcement lives here.
 - **Skill** — a playbook (`/awe-run`, `/awe-intake`, …). `/awe-run` chains phases; hooks still block skipped gates.
 - **Subagent** — a fresh-context agent the main chat spawns for one bounded job (architect, role dev, reviewer, verifier). Isolation is the point: a reviewer that didn't write the code reviews it honestly.
-- **MCP** — Model Context Protocol. **codebase-memory** is required (enable it once on the plugin). GitHub / GitLab / Slack are optional — if connected, agents report status; if not, the pipeline still runs. See [docs/GUIDE.md](docs/GUIDE.md).
+- **MCP** — Model Context Protocol. **codebase-memory** is required (enable it once on the plugin). GitHub / GitLab / Redmine / Jira / Slack are optional — if connected, agents journal `ticket-updates.md` and comment on the originating ticket; if not, the pipeline still runs. See [docs/GUIDE.md](docs/GUIDE.md).
 - **Worktree** — a second checkout of the same repo on its own branch. AWE creates one only when two plans are implementing at once (so they do not clobber each other). A single implementing ticket uses the main working tree.
 
 ---
@@ -48,6 +48,15 @@ ln -s /path/to/rt-coding-essentials/rt-coding-essentials ~/.cursor/plugins/local
 ```
 
 Then **Developer: Reload Window**. Teams/Enterprise: turn on **Allow Local Plugin Imports** if that setting is off.
+
+After you push a plugin change, refresh this machine’s GitHub-marketplace cache (skips if that origin SHA is already there):
+
+```bash
+npm run marketplace:cache           # fetch origin, install GitHub latest
+npm run marketplace:cache:check     # exit 2 if GitHub HEAD is not cached
+```
+
+Uses **origin/main**, not your working tree. Then reload the window. If Customize still shows the old semver, remove the GitHub source and add it again.
 
 Official Marketplace listing (optional, Cursor reviews every update): [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish) with this repo URL.
 
@@ -148,7 +157,7 @@ Enable codebase-memory MCP when Cursor asks
 Open your app repo → describe the ticket  (or /awe-run PROJ-123)
 ```
 
-Index happens on first run (`index_repository`). Then: answer open questions if any → explicit **yes** on the plan → agents code and review → verifier runs Gherkin with Playwright on localhost (video/trace) → you watch and sign `verification.md` → `/awe-ship` if you want a PR. If GitHub/GitLab/Slack MCP is connected, status posts there; otherwise skip.
+Index happens on first run (`index_repository`). Then: answer open questions if any → explicit **yes** on the plan → agents code and review → verifier runs Gherkin with Playwright on localhost (HTML report + video/trace) → you watch the report and sign `verification.md` → `/awe-ship` if you want a PR. Status always lands in `plans/<ticket>/ticket-updates.md`; if a ticket/Slack MCP can comment, the same bullets go there.
 
 **setup.mjs (optional, repo-local copy)**
 
@@ -186,7 +195,7 @@ Try the whole pipeline on a demo ticket. Nothing here needs a ticket system — 
 4. **Approve** ▣ *you*. `/awe-approve` — read the one-screen summary, say **yes**. Only now can any code be written (before this, the write-gate hook physically denies code edits — try it: ask the agent to "just start coding" and watch it get blocked).
 5. **Code.** `/awe-code backend` — a dev subagent implements the plan test-first on branch `awe/DEMO-1-backend` (a worktree only if another plan is already implementing), then writes fresh test evidence.
 6. **Review.** `/awe-review backend` — two reviewers (functional + security) attack the diff; fixes loop automatically, up to 3 rounds before it escalates to you.
-7. **Verify** ▣ *you*. `/awe-verify` — Playwright runs the Gherkin on localhost; watch the video (or `show-trace` for API). Flip `verified: true` with your initials.
+7. **Verify** ▣ *you*. `/awe-verify` — Playwright runs the Gherkin on localhost; open the HTML report (`npx playwright show-report .cursor/state/verify/<ticket>-html-report`). Flip `verified: true` with your initials.
 8. **Ship.** `/awe-ship` — pre-flight checks, push, and either a PR via MCP or the exact `gh pr create` command printed for you. You merge.
 
 When you're done experimenting: `/awe-regression` is how a post-merge bug re-enters the pipeline, and `node ~/agentic-coding/setup.mjs --uninstall` removes every AWE-managed file cleanly.
@@ -247,7 +256,7 @@ Each role implements on branch `awe/PROJ-123-<role>` cut from your base branch, 
 
 Scanners run (built-in secrets always; gitleaks/semgrep/osv-scanner when installed). Then `awe-reviewer` (functional) reviews the diff, producing structured JSON findings plus a verdict. `awe-security-reviewer` runs **only when** `securityReview` is `true` in `awe.config.json` (default **false**). Coding agents already search current advisories before adding packages — that is the default security bar.
 
-- `needs-fix` → findings go into `handoff.md`, the coder is respawned. Up to **3 iterations** (your configured `reviewIterations`).
+- `needs-fix` → findings go into `handoff.md`, the coder writes `reviews/round-N-response.md` (fixed / rebutted / deferred) and is respawned. Up to **3 iterations** (your configured `reviewIterations`).
 - Budget exhausted → `plans/PROJ-123/ESCALATION.md` and a stop for **your** decision. Never silent shipping.
 - `verified` from the required reviewer(s) → role marked verified; when all roles pass, phase becomes `verify`.
 
@@ -259,9 +268,13 @@ Reviewers only judge a role's own scope — the frontend is never failed because
 /awe-verify
 ```
 
-`awe-verifier` **runs** the architect Gherkin on **localhost** with mandatory Playwright (`@playwright/test@1.61.0`): browser **video** for UI, API **trace** for backend. Failures go back to the coder (`verifyIteration`, budget 3, independent of review). When green, it writes `plans/PROJ-123/verification.md` with recording paths plus numbered human steps mapped 1:1 to the scenarios.
+`awe-verifier` **runs** the architect Gherkin on **localhost** with mandatory Playwright (`@playwright/test@1.61.0`): browser **video** for UI, API **trace** for backend, **HTML report** as the combined viewer (`npx playwright show-report .cursor/state/verify/<ticket>-html-report`). Failures go back to the coder (`verifyIteration`, budget 3, independent of review). When green, it writes:
 
-Watch the recording (and optionally walk the steps). All matches? Flip the frontmatter:
+- `plans/PROJ-123/verification.md` — numbered human steps + signoff frontmatter
+- `plans/PROJ-123/e2e/run-verify.sh` — portable re-run
+- `.cursor/state/verify/PROJ-123/README.md` — sits next to the traces (what/where/how)
+
+Open the HTML report first (every scenario, video, and trace in one UI). Optionally walk the steps. All matches? Flip the frontmatter:
 
 ```yaml
 verified: true
@@ -348,7 +361,7 @@ AWE pins every subagent to **Composer 2.5** — which is in the Cursor Models po
 |---|---|---|
 | `awe-backend-dev`, `awe-frontend-dev` | `composer-2.5-fast` | **Interactive** — a human is usually watching while code is written, so latency is felt |
 | `awe-architect`, `awe-reviewer`, `awe-security-reviewer` | `composer-2.5[fast=false]` | **Unattended** — planning/review, often cloud or overnight |
-| `awe-verifier` | `composer-2.5[fast=false]` | Runs Playwright from Gherkin, then waits on you for the recording |
+| `awe-verifier` | `composer-2.5[fast=false]` | Runs Playwright from Gherkin, writes HTML report + steps, then waits on you |
 
 **Change a pin** by editing the single `model:` line in that agent's `.cursor/agents/awe-*.md` frontmatter. If a pinned model isn't available on your plan, Cursor **falls back gracefully** (the run still happens on an available model). **Escape hatch:** set `model: inherit` to use whatever model the parent chat is running.
 
@@ -386,7 +399,7 @@ AWE pins every subagent to **Composer 2.5** — which is in the Cursor Models po
 | **L2** Phase gating | no code before approval; subagents only in their phase; pushes only in ship | `pre-tool-gate.mjs`, `subagent-gate.mjs`, `before-shell.mjs` |
 | **L3** Evidence gates | fresh green-test evidence to end a session; verified human signoff to push; secrets scanned on every write | `stop-evidence.mjs`, `post-tool-scan.mjs` |
 | **L4** CI hard gate | server-side re-verification: tests, lint, gitleaks, semgrep, osv-scanner, CodeQL, checkov + cfn-guard (IaC), ZAP baseline (DAST, when a target URL is configured) | `--ci github` / `--ci gitlab` workflow |
-| **L5** Human gates | APPROVE (plans) and VERIFY (watch Playwright recording, then sign) | `/awe-approve`, `/awe-verify` |
+| **L5** Human gates | APPROVE (plans) and VERIFY (watch Playwright HTML report, then sign) | `/awe-approve`, `/awe-verify` |
 
 Plus: untrusted-input doctrine (ticket/PR/web text is data, never instructions), least-privilege optional MCPs, required codebase-memory, and an append-only audit log.
 
@@ -435,8 +448,9 @@ Removes **only AWE-managed files** (hooks, agents, skills incl. `skills/referenc
 ## 13. Developing AWE itself
 
 ```bash
-npm run check        # syntax-checks setup.mjs + every hook
-npm run test:hooks   # 86 hook+setup assertions (piped JSON + throwaway git repo)
+npm run check                 # syntax-checks setup.mjs, marketplace cache script, every hook
+npm run test:hooks            # hook+setup assertions (piped JSON + throwaway git repo)
+npm run marketplace:cache     # install GitHub latest into ~/.cursor marketplace cache if missing
 ```
 
 The `template/` tree is copied verbatim into target projects (with `{{PLACEHOLDER}}` substitution for the config/profile). Hooks must stay zero-dependency Node ≥ 24 and must honor the golden rule: **no state file / `active: false` / `AWE_DISABLED=1` → exit 0 with `{}` immediately.**

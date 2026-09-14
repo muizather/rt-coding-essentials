@@ -26,7 +26,7 @@ flowchart TD
     G --> H{"Verdict"}
     H -- "needs-fix, iteration < 3" --> F
     H -- "3 rounds unresolved" --> ESC["ESCALATION.md — human takes over"]
-    H -- "verified" --> I["/awe-verify — Playwright Gherkin on localhost; video/trace + human steps (HUMAN GATE)"]
+    H -- "verified" --> I["/awe-verify — Playwright Gherkin on localhost; HTML report + video/trace + human steps (HUMAN GATE)"]
     I --> J["/awe-ship — pre-flight + PR; CI hard gate must pass"]
     J --> K["Merge → deploy dev/staging"]
     K --> L["Post-merge combined E2E verification"]
@@ -47,7 +47,7 @@ flowchart TD
 
 **5 — REVIEW** (`/awe-review <role>`). Runs scanners, then spawns `awe-reviewer` — a fresh-context **adversarial** pass over the diff against the spec, gherkin, and implementation plan. `awe-security-reviewer` is optional (`securityReview: true`). Findings are severity-labeled (Critical ⇒ the iteration fails). *needs-fix* respawns the coder; *verified* moves on; three unresolved rounds write `ESCALATION.md` and hand it to you.
 
-**6 — VERIFY** (`/awe-verify`) ▣ **human gate**. The `awe-verifier` runs architect Gherkin on **localhost** with mandatory Playwright (browser **video** for UI; API **trace** for backend). Failures respawn the coder (`verifyIteration`, budget 3). On green it writes `verification.md` (recording paths + numbered human steps). You watch the recording and sign; a post-signoff failure is stop-the-line → `/awe-regression`. On pass you set `verified: true` + initials + date, and the skill writes `awe-signoff.json`.
+**6 — VERIFY** (`/awe-verify`) ▣ **human gate**. The `awe-verifier` runs architect Gherkin on **localhost** with mandatory Playwright (browser **video** for UI; API **trace** for backend; **HTML report** as the combined viewer). Failures respawn the coder (`verifyIteration`, budget 3). On green it writes `verification.md`, `e2e/run-verify.sh`, and `.cursor/state/verify/<ticket>/README.md`. You open `npx playwright show-report .cursor/state/verify/<ticket>-html-report` and sign; a post-signoff failure is stop-the-line → `/awe-regression`. On pass you set `verified: true` + initials + date, and the skill writes `awe-signoff.json`.
 
 **7 — SHIP** (`/awe-ship`). Pre-flight checks signoff + fresh evidence + clean scanners, writes the **Ship Decision** artifact (`ship-decision.md`: GO/NO-GO + rollback plan + RTO) and checks the **ADR docs gate**. Then commits, pushes `awe/<ticket>-*` (allowed by `before-shell.mjs` only now), and opens the PR via MCP or printed `gh`/`glab` commands.
 
@@ -146,7 +146,7 @@ sequenceDiagram
     Orch->>Rev: spawn both, adversarial brief (diff range, plan + contract), scanners run
     Rev-->>Orch: round-N.md — verdict + severity-labeled findings
     alt needs-fix AND iteration below reviewIterations
-        Orch->>Files: bump iteration, append round-N findings to handoff.md (context preserved)
+        Orch->>Files: bump iteration, append round-N findings to handoff.md + round-N-response.md after the coder returns
         Orch->>Coder: respawn for the fix round with updated handoff.md
         Coder-->>Orch: fixes + fresh evidence
         Orch->>Rev: review next round
@@ -166,8 +166,8 @@ sequenceDiagram
         Orch->>Files: write ESCALATION.md
         Orch-->>Human: escalation
     else green
-        Orch->>Files: awe-verify-evidence.json + verification.md (video/trace + human steps)
-        Orch-->>Human: watch the recording (HUMAN GATE)
+        Orch->>Files: awe-verify-evidence.json + verification.md + run-verify.sh + verify-folder README (HTML report + human steps)
+        Orch-->>Human: open HTML report (HUMAN GATE)
         alt any step fails — stop the line
             Human->>Orch: /awe-regression DESCRIPTION
             Orch->>Files: plans/PROJ-123-R1/ created, re-enter at architect (Prove-It repro test)
@@ -218,8 +218,8 @@ sequenceDiagram
     Plugin->>App: plans/<ticket>/ + state (not required in git)
     Note over Plugin: chain intake → architect → code → review
     Plugin-->>Dev: STOP for explicit yes (approve) and hands-on verify
-    opt Slack or GitHub/GitLab MCP connected
-        Plugin->>Dev: status comments / messages
+    opt Slack or originating-ticket MCP connected
+        Plugin->>Dev: status comments / messages (else ticket-updates.md only)
     end
     Plugin->>Mem: manage_adr after ship or /awe-remember
 ```

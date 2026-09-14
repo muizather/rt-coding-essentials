@@ -29,4 +29,4 @@ Then implements test-first against that implementation plan.
 
 ## Reviewer
 
-Functional review is against **gherkin + spec AC + contract + the implementation plan**, not against “the whole codebase.” The reviewer writes a short testing plan from those artifacts, then hunts the diff. Optional `awe-security-reviewer` runs only when `securityReview` is true. Unit tests are the coder’s proof; gherkin is the spec bar **VERIFY runs with Playwright** on localhost (video / API trace), then the human signs.
+Functional review is against **gherkin + spec AC + contract + the implementation plan**, not against “the whole codebase.” The reviewer writes a short testing plan from those artifacts, then hunts the diff. Optional `awe-security-reviewer` runs only when `securityReview` is true. Unit tests are the coder’s proof; gherkin is the spec bar **VERIFY runs with Playwright** on localhost (HTML report + video / API trace), then the human signs. The coder records each round in `reviews/round-N-response.md`.

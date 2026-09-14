@@ -13,8 +13,8 @@ alwaysApply: true
 | 2 | `architect` | Architect: root-grain graph → high-level `architecture.md`, gherkin E2E, `backend.spec.md` / `frontend.spec.md` (no file lists). Open questions optional. | Reads the spec; answers architect questions if any. |
 | 3 | `approve` | `/awe-approve` validates any architect questions, then flips **specs** to `approved` after an explicit human **yes**. | **HARD GATE.** Nothing codes without this. |
 | 4 | `code` | Per role (`backend` / `frontend`): branch `awe/<ticket>-<role>` (worktree **only** if another plan is already implementing), coder writes `implementation.plan.md` + `implementation-questions.md`, **stops if questions are open or `dependsOn` is unmet**, then TDD. Source writes are hook-blocked until questions are checked and dependencies are `done`. | Answers implementation questions. |
-| 5 | `review` | Scanners run; `awe-reviewer` reviews the diff (optional `awe-security-reviewer` when `securityReview: true`); findings in `reviews/round-<N>.md`. `needs-fix` → respawn coder; `verified` → next phase. | Intervenes on any finding. |
-| 6 | `verify` | `awe-verifier` runs architect Gherkin/AC on **localhost** with mandatory Playwright (browser video for UI; API trace for backend). `needs-fix` respawns the coder (`verifyIteration`, same budget as review). On green: recording + numbered human steps in `verification.md`. | **HARD GATE.** Human watches the recording (optional hand-run), then `verified: true` + initials + date. |
+| 5 | `review` | Scanners run; `awe-reviewer` reviews the diff (optional `awe-security-reviewer` when `securityReview: true`); findings in `reviews/round-<N>.md`. Coder records `round-<N>-response.md` (fixed / rebutted / deferred). `needs-fix` → respawn coder; `verified` → next phase. | Intervenes on any finding. |
+| 6 | `verify` | `awe-verifier` runs architect Gherkin/AC on **localhost** with mandatory Playwright (browser video for UI; API trace for backend; **HTML report** is the combined viewer). `needs-fix` respawns the coder (`verifyIteration`, same budget as review). On green: report + `run-verify.sh` + numbered human steps in `verification.md` and the verify-folder README. | **HARD GATE.** Human watches the HTML report (optional hand-run), then `verified: true` + initials + date. |
 | 7 | `ship` | `/awe-ship` pre-flight (signoff + fresh evidence + clean scanners), commit, push `awe/<ticket>-*` branch, open PR via MCP or printed commands. Then a knowledge pass (`manage_adr`) if a lasting decision was made. | Merges the PR. |
 | 8 | post-merge E2E | Combined end-to-end run on the base branch. Regressions re-enter via `/awe-regression` as `plans/<ticket>-R<N>/`. | Confirms production behavior. |
 
@@ -77,14 +77,21 @@ Written by the coding agent after running the discovered or configured test comm
 
 The `stop` hook demands evidence younger than **2 hours** before it lets a code/review session end (unit/test command) and before it lets a verify session end (Playwright: `awe-verify-evidence.json`). Stale or missing evidence forces the agent to re-run instead of claiming done.
 
-This evidence is the machine-checkable slice of the standing **Definition of Done** — see `.cursor/skills/references/definition-of-done.md`. The DoD is the full bar (correctness, quality, integration, docs, ship-readiness); `awe-evidence.json` proves the CODE Correctness slice. VERIFY adds `awe-verify-evidence.json` (Playwright Gherkin on localhost, video/trace). AWE never treats "tests pass" alone as done.
+This evidence is the machine-checkable slice of the standing **Definition of Done** — see `.cursor/skills/references/definition-of-done.md`. The DoD is the full bar (correctness, quality, integration, docs, ship-readiness); `awe-evidence.json` proves the CODE Correctness slice. VERIFY adds `awe-verify-evidence.json` (Playwright Gherkin on localhost, HTML report + video/trace). AWE never treats "tests pass" alone as done.
 
 ## VERIFY evidence — `.cursor/state/awe-verify-evidence.json`
 
-Written by the verifier after a green Playwright run:
+Written by the verifier after a green Playwright run. `command` must be portable (no sandbox browser paths). `htmlReport` is the combined viewer:
 
 ```json
-{ "playwrightPassed": true, "command": "npx playwright test -c plans/PROJ-123/e2e", "video": ".cursor/state/verify/PROJ-123/…webm", "trace": ".cursor/state/verify/PROJ-123/…zip", "at": "<ISO-8601>" }
+{
+  "playwrightPassed": true,
+  "command": "npx playwright test -c plans/PROJ-123/e2e",
+  "htmlReport": ".cursor/state/verify/PROJ-123-html-report",
+  "video": ".cursor/state/verify/PROJ-123/…webm",
+  "trace": ".cursor/state/verify/PROJ-123/…zip",
+  "at": "<ISO-8601>"
+}
 ```
 
 ## Human signoff — `.cursor/state/awe-signoff.json`

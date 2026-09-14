@@ -174,10 +174,19 @@ else
   fail "architect still lists files"
 fi
 if grep -q 'Playwright is \*\*mandatory\*\*' "$ROOT/rt-coding-essentials/skills/references/verify-e2e.md" \
-  && grep -q 'playwrightPassed' "$ROOT/rt-coding-essentials/agents/awe-verifier.md"; then
+  && grep -q 'playwrightPassed' "$ROOT/rt-coding-essentials/agents/awe-verifier.md" \
+  && grep -q 'run-verify.sh' "$ROOT/rt-coding-essentials/skills/references/verify-e2e.md" \
+  && grep -q 'show-report' "$ROOT/rt-coding-essentials/skills/references/verify-e2e.md" \
+  && grep -q 'HTML reporter required' "$ROOT/rt-coding-essentials/skills/references/verify-e2e.md"; then
   pass "verifier requires Playwright Gherkin on localhost"
 else
   fail "verifier missing mandatory Playwright"
+fi
+if grep -q 'ticket-updates.md' "$ROOT/rt-coding-essentials/skills/references/mcp-report.md" \
+  && grep -q 'round-<N>-response.md' "$ROOT/rt-coding-essentials/skills/awe-review/SKILL.md"; then
+  pass "review ledger + ticket journal required"
+else
+  fail "missing round-N-response or ticket-updates.md"
 fi
 if grep -q 'codebase-memory-mcp@0.10.8' "$ROOT/rt-coding-essentials/mcp.json"; then pass "plugin mcp pins codebase-memory 0.10.8"; else fail "plugin mcp missing pin"; fi
 
@@ -663,6 +672,37 @@ out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"awe.config.json",
 expect_empty "AWE_DISABLED=1 bypasses tamper" "$out"
 out="$(run_hook before-shell.mjs '{"tool_input":{"command":"git push --force"}}' AWE_DISABLED=1)"
 expect_empty "AWE_DISABLED=1 bypasses force-push" "$out"
+
+echo "== marketplace cache script =="
+if node --check "$ROOT/scripts/update-marketplace-cache.mjs"; then
+  pass "syntax update-marketplace-cache.mjs"
+else
+  fail "syntax update-marketplace-cache.mjs"
+fi
+MCACHE="$(mktemp -d /tmp/awe-mcache.XXXXXX)"
+SHA="$(git -C "$ROOT" rev-parse origin/main 2>/dev/null || git -C "$ROOT" rev-parse origin/HEAD)"
+if node "$ROOT/scripts/update-marketplace-cache.mjs" --offline --cursor-home "$MCACHE" >/tmp/awe-mcache-1.log 2>&1; then
+  if [[ -f "$MCACHE/plugins/cache/rt-coding-essentials/rt-coding-essentials/$SHA/.cursor-plugin/plugin.json" \
+     && -f "$MCACHE/plugins/marketplaces/github.com/muizather/rt-coding-essentials/$SHA/.cursor-plugin/marketplace.json" ]]; then
+    pass "marketplace cache writes plugin + marketplace SHA"
+  else
+    fail "marketplace cache missing expected plugin.json under $SHA"
+  fi
+else
+  fail "marketplace cache first run failed: $(cat /tmp/awe-mcache-1.log)"
+fi
+if node "$ROOT/scripts/update-marketplace-cache.mjs" --offline --cursor-home "$MCACHE" --check >/tmp/awe-mcache-check.log 2>&1; then
+  pass "marketplace cache --check already present"
+else
+  fail "marketplace cache --check should succeed when current: $(cat /tmp/awe-mcache-check.log)"
+fi
+out="$(node "$ROOT/scripts/update-marketplace-cache.mjs" --offline --cursor-home "$MCACHE" 2>&1 || true)"
+if printf '%s' "$out" | grep -q 'already cached'; then
+  pass "marketplace cache second run skips"
+else
+  fail "marketplace cache second run: $out"
+fi
+rm -rf "$MCACHE"
 
 echo "== setup.mjs =="
 git -C "$SETUP_TGT" init -q

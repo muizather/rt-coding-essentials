@@ -50,8 +50,8 @@ Optional markdown under the app's `docs/` only if the human asked for committed 
 
 ## Orchestration
 
-Prefer `/awe-run` (or a natural-language ticket). It chains intake → architect → code → review until tests are green. It **stops** for an explicit **yes** at APPROVE and for VERIFY (watch the Playwright recording, then sign). Hedged chat is not approval. A second `/awe-run` while another plan is open **starts a new plan** (or resumes the named ticket). It records `dependsOn` when the work shares a surface; it does not refuse intake.
+Prefer `/awe-run` (or a natural-language ticket). It chains intake → architect → code → review until tests are green. It **stops** for an explicit **yes** at APPROVE and for VERIFY (watch the Playwright **HTML report**, then sign). Hedged chat is not approval. A second `/awe-run` while another plan is open **starts a new plan** (or resumes the named ticket). It records `dependsOn` when the work shares a surface; it does not refuse intake.
 
 ## Optional reporting
 
-If Slack, GitHub, or GitLab MCP tools are actually available, post a short status at phase boundaries (questions waiting, review needs-fix, verified, PR opened). If they are not connected, **skip** — do not fail the pipeline. See `skills/references/mcp-report.md`.
+Always append `plans/<ticket>/ticket-updates.md`. If Slack or a write-capable ticket MCP (Redmine/Jira/GitHub/GitLab) is actually available, post the same short bullets at phase boundaries (questions waiting, review needs-fix, coder response, verified, VERIFY green, PR opened). If they are not connected, **skip the MCP post** — do not fail the pipeline. See `skills/references/mcp-report.md`.

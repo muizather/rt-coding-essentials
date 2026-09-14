@@ -54,6 +54,8 @@ git -C "$REPO" checkout -B awe/<ticket>-<role> origin/<baseBranch>
 - Run this repo’s test command; write awe-evidence.json when green.
 ## Prior review findings
 <latest round or "none yet">
+## Review response
+plans/<ticket>/reviews/round-<N>-response.md (each finding → fixed | rebutted | deferred) or "none yet"
 ```
 
 ### Test-driven development (implement mode)
@@ -76,7 +78,7 @@ that FAILS        to make it         tests still
    - If `*.implementation-questions.md` still has `- [ ]` → tell the human where to answer. **Do not** continue to implement or to `/awe-review`.
    - If `dependsOn` is unmet → tell the human which tickets must reach `done`. **Do not** spawn implement.
    - If no open boxes and dependsOn done → immediately spawn again with `mode: implement` (same chat), unless the human asked to read the plan first.
-8. **When implement mode returns:** sanity-check tests green and `.cursor/state/awe-evidence.json` (`testsPassed: true`, fresh). Report what to manually check.
+8. **When implement mode returns:** sanity-check tests green and `.cursor/state/awe-evidence.json` (`testsPassed: true`, fresh). If this was a review fix round, confirm `plans/<ticket>/reviews/round-<N>-response.md` maps every finding. Append `ticket-updates.md`. Report what to manually check.
 9. **Next step (implement only):** if this chat is `/awe-run`, continue to `/awe-review <role>`. Otherwise tell the human: `/awe-code <other-role>` in another chat, or `/awe-review <role>`.
 
 ## Rationalizations (code)
