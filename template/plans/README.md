@@ -66,7 +66,10 @@ The brief a dev subagent reads first: plan pointer, contract pointer, iteration 
 Scanner output + both reviewers' JSON verdicts + combined findings table for round N.
 
 ### verification.md
-Numbered human test steps. Frontmatter `verified: false` → the human flips it to `true` with initials + date to unlock shipping.
+Numbered human test steps plus paths to the Playwright **video** (UI) and/or **trace** (API). Frontmatter `verified: false` → the human flips it to `true` with initials + date after watching the recording.
+
+### local-run.md
+Per-ticket slice: which local services are up, what is mocked/skipped, which gherkin scenarios Playwright will run. Generated during VERIFY from discovered `local` start commands.
 
 ### ESCALATION.md
 Written when the review budget is exhausted: unresolved findings, what was tried, recommended human decision.

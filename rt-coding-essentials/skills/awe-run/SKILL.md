@@ -4,7 +4,8 @@ description: >-
   Run the AWE pipeline from a ticket or task through coding and review until
   tests are green. Use when the user describes a feature, bug, ticket id, or
   asks to implement something end-to-end. Stops for explicit human yes at
-  approve and for hands-on verify. Requires codebase-memory MCP.
+  approve and for verify (watch Playwright recording, then sign). Requires
+  codebase-memory MCP.
 ---
 
 # awe-run
@@ -14,7 +15,7 @@ description: >-
 Human gates that still stop you:
 
 1. **APPROVE** — after architecture, present the summary and wait for an explicit **yes**. Hedges are not approval (`/awe-approve` procedure).
-2. **VERIFY** — after review is green, write `verification.md` and wait for the human to test and sign (`/awe-verify` procedure). Then you may `/awe-ship` if they want.
+2. **VERIFY** — after review is green, follow `/awe-verify`: Playwright from Gherkin on localhost, coder loop if it fails, then wait for the human to watch the recording and sign. Then you may `/awe-ship` if they want.
 
 ## 0. Bootstrap (every run)
 
@@ -43,7 +44,7 @@ When every role is reviewer-`verified`, set `phase: verify`.
 
 ## 4. Verify (hard stop)
 
-Follow `/awe-verify`: spawn `awe-verifier`, hand `verification.md` to the human, wait until frontmatter `verified: true` with initials + date, then write signoff and `phase: ship`. Do not push before that.
+Follow `/awe-verify`: spawn `awe-verifier` (Playwright from Gherkin, localhost), loop needs-fix to the coder up to `reviewIterations`, then hand video/trace + `verification.md` to the human. Wait until frontmatter `verified: true` with initials + date, then write signoff and `phase: ship`. Do not push before that.
 
 ## 5. Ship + knowledge
 

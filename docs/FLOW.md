@@ -26,7 +26,7 @@ flowchart TD
     G --> H{"Verdict"}
     H -- "needs-fix, iteration < 3" --> F
     H -- "3 rounds unresolved" --> ESC["ESCALATION.md — human takes over"]
-    H -- "verified" --> I["/awe-verify — verification.md; human manually tests (HUMAN GATE)"]
+    H -- "verified" --> I["/awe-verify — Playwright Gherkin on localhost; video/trace + human steps (HUMAN GATE)"]
     I --> J["/awe-ship — pre-flight + PR; CI hard gate must pass"]
     J --> K["Merge → deploy dev/staging"]
     K --> L["Post-merge combined E2E verification"]
@@ -47,7 +47,7 @@ flowchart TD
 
 **5 — REVIEW** (`/awe-review <role>`). Runs scanners, then spawns `awe-reviewer` — a fresh-context **adversarial** pass over the diff against the spec, gherkin, and implementation plan. `awe-security-reviewer` is optional (`securityReview: true`). Findings are severity-labeled (Critical ⇒ the iteration fails). *needs-fix* respawns the coder; *verified* moves on; three unresolved rounds write `ESCALATION.md` and hand it to you.
 
-**6 — VERIFY** (`/awe-verify`) ▣ **human gate**. The `awe-verifier` subagent writes `verification.md`: numbered, by-hand test steps. You run them; a failure is stop-the-line → `/awe-regression`. On pass you set `verified: true` + initials + date, and the skill writes `awe-signoff.json`.
+**6 — VERIFY** (`/awe-verify`) ▣ **human gate**. The `awe-verifier` runs architect Gherkin on **localhost** with mandatory Playwright (browser **video** for UI; API **trace** for backend). Failures respawn the coder (`verifyIteration`, budget 3). On green it writes `verification.md` (recording paths + numbered human steps). You watch the recording and sign; a post-signoff failure is stop-the-line → `/awe-regression`. On pass you set `verified: true` + initials + date, and the skill writes `awe-signoff.json`.
 
 **7 — SHIP** (`/awe-ship`). Pre-flight checks signoff + fresh evidence + clean scanners, writes the **Ship Decision** artifact (`ship-decision.md`: GO/NO-GO + rollback plan + RTO) and checks the **ADR docs gate**. Then commits, pushes `awe/<ticket>-*` (allowed by `before-shell.mjs` only now), and opens the PR via MCP or printed `gh`/`glab` commands.
 
@@ -157,15 +157,25 @@ sequenceDiagram
     end
 
     Human->>Orch: /awe-verify
-    Orch->>Files: awe-verifier writes verification.md (numbered by-hand steps)
-    Orch-->>Human: run the steps by hand (HUMAN GATE)
-    alt any step fails — stop the line
-        Human->>Orch: /awe-regression DESCRIPTION
-        Orch->>Files: plans/PROJ-123-R1/ created, re-enter at architect (Prove-It repro test)
-    else all pass
-        Human->>Files: set verified:true + initials + date in verification.md
-        Human->>Orch: done
-        Orch->>Files: write awe-signoff.json, state phase = ship
+    Orch->>Files: discover local start; Playwright specs from gherkin
+    Orch->>Orch: npx playwright test (localhost)
+    alt Playwright needs-fix AND verifyIteration below budget
+        Orch->>Files: bump verifyIteration, append findings to handoff.md
+        Orch->>Coder: respawn (phase=code) then re-enter verify
+    else budget reached
+        Orch->>Files: write ESCALATION.md
+        Orch-->>Human: escalation
+    else green
+        Orch->>Files: awe-verify-evidence.json + verification.md (video/trace + human steps)
+        Orch-->>Human: watch the recording (HUMAN GATE)
+        alt any step fails — stop the line
+            Human->>Orch: /awe-regression DESCRIPTION
+            Orch->>Files: plans/PROJ-123-R1/ created, re-enter at architect (Prove-It repro test)
+        else all pass
+            Human->>Files: set verified:true + initials + date in verification.md
+            Human->>Orch: done
+            Orch->>Files: write awe-signoff.json, state phase = ship
+        end
     end
 
     Human->>Orch: /awe-ship

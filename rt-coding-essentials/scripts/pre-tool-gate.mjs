@@ -139,14 +139,17 @@ await runHook(async (input) => {
   const entry = getTicketEntry(state, ticketId);
   const phase = entry?.phase || state.phase;
 
-  if (PLAN_ONLY_PHASES.has(phase)) {
+  if (PLAN_ONLY_PHASES.has(phase) || phase === 'verify' || phase === 'ship' || phase === 'done') {
+    const why = PLAN_ONLY_PHASES.has(phase)
+      ? `code emission is blocked until its plans are approved (phase=code)`
+      : `application source is blocked in phase ${phase} (Playwright specs belong under plans/${ticketId ?? '<ticket>'}/e2e/; bounce VERIFY needs-fix to phase=code)`;
     audit(dir, 'preToolUse', 'deny', `phase=${phase}: write outside plans/ blocked`, {
       path: rel, ticket: ticketId, phase,
     });
     return respond({
       permission: 'deny',
       agent_message:
-        `Ticket ${ticketId ?? '<ticket>'} is in phase ${phase} — code emission is blocked until its plans are approved (phase=code). ` +
+        `Ticket ${ticketId ?? '<ticket>'} is in phase ${phase} — ${why}. ` +
         `Write plans under plans/${ticketId ?? '<ticket>'}/ only. ` +
         `Other in-flight tickets are not blocked by this one. ` +
         `If you believe the phase is wrong, tell the human; only skills transition phases.`,
@@ -204,7 +207,6 @@ await runHook(async (input) => {
     }
   }
 
-  // --- review / verify / ship / done: allow (role scope is enforced by
-  //     subagent-gate + reviewer scope rules; keep the hard gate simple) --------
+  // --- review: allow source (fix rounds). verify/ship/done already denied above.
   return respond({ permission: 'allow' });
 }, { onError: 'closed' });

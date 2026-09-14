@@ -28,7 +28,7 @@ await runHook(async (_input) => {
     `Discovered baseBranch=${cfg.baseBranch}, test=\`${cfg.commands?.test || 'npm test'}\`, ` +
     `roles=${(cfg.roles || ['backend']).join(',')}.`;
   const memory =
-    `REQUIRED: follow code-graph.md. Architect writes high-level spec+gherkin (no files). Coders write implementation plans + unit tests and must search current advisories before adding packages.`;
+    `REQUIRED: follow code-graph.md. Architect writes high-level spec+gherkin (no files). Coders write implementation plans + unit tests and must search current advisories before adding packages. VERIFY runs that gherkin with Playwright on localhost (video/trace) — never skip to human steps only.`;
   const optionalMcp =
     `Optional: if GitHub/GitLab/Slack MCP tools are available, post status at phase boundaries; if not, skip.`;
 

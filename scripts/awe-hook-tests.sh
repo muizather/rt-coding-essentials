@@ -173,6 +173,12 @@ if grep -q 'No file lists' "$ROOT/rt-coding-essentials/agents/awe-architect.md";
 else
   fail "architect still lists files"
 fi
+if grep -q 'Playwright is \*\*mandatory\*\*' "$ROOT/rt-coding-essentials/skills/references/verify-e2e.md" \
+  && grep -q 'playwrightPassed' "$ROOT/rt-coding-essentials/agents/awe-verifier.md"; then
+  pass "verifier requires Playwright Gherkin on localhost"
+else
+  fail "verifier missing mandatory Playwright"
+fi
 if grep -q 'codebase-memory-mcp@0.10.8' "$ROOT/rt-coding-essentials/mcp.json"; then pass "plugin mcp pins codebase-memory 0.10.8"; else fail "plugin mcp missing pin"; fi
 
 echo "== Discover (no awe.config.json) =="
@@ -181,7 +187,7 @@ git -C "$DISC" init -q
 git -C "$DISC" checkout -q -b main 2>/dev/null || git -C "$DISC" symbolic-ref HEAD refs/heads/main
 printf '{"scripts":{"test":"pytest -q"}}\n' > "$DISC/package.json"
 DISC_OUT="$(env CURSOR_PROJECT_DIR="$DISC" node --input-type=module -e "
-import { discoverTestCommand, discoverBaseBranch, discoverRoles, discoverGitRepos, ensureDiscoveredConfig, loadConfig } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+import { discoverTestCommand, discoverBaseBranch, discoverRoles, discoverGitRepos, discoverLocalRun, ensureDiscoveredConfig, loadConfig } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
 const d = process.env.CURSOR_PROJECT_DIR;
 const bits = [discoverTestCommand(d), discoverBaseBranch(d), discoverRoles(d).join(','), String(discoverGitRepos(d).length)];
 ensureDiscoveredConfig(d);
@@ -223,6 +229,19 @@ process.stdout.write(repos + '|' + roles);
 ")"
 if [[ "$FAM2_OUT" == api,web\|backend,frontend ]]; then pass "discover nested FE+BE roles ($FAM2_OUT)"; else fail "nested FE+BE: $FAM2_OUT"; fi
 rm -rf "$FAM2"
+
+echo "== Discover local run =="
+LOC="$(mktemp -d /tmp/awe-loc.XXXXXX)"
+git -C "$LOC" init -q
+printf '{"scripts":{"dev":"next dev","test":"vitest"}}\n' > "$LOC/package.json"
+printf 'services: {}\n' > "$LOC/compose.yaml"
+LOC_OUT="$(env CURSOR_PROJECT_DIR="$LOC" node --input-type=module -e "
+import { discoverLocalRun } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+const l = discoverLocalRun(process.env.CURSOR_PROJECT_DIR);
+process.stdout.write([l.start, l.composeFile, (l.scripts||[]).join(',')].join('|'));
+")"
+if [[ "$LOC_OUT" == npm\ run\ dev\|compose.yaml\|dev,test ]]; then pass "discover local start+compose ($LOC_OUT)"; else fail "local run: $LOC_OUT"; fi
+rm -rf "$LOC"
 
 echo "== Inactive (no state) =="
 rm -f "$FIX/.cursor/state/awe-state.json"
@@ -285,6 +304,11 @@ expect_deny "code phase blocks frontend src while FE questions open" "$out"
 write_impl frontend
 out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"src/app/Page.tsx","content":"x"}}')"
 expect_allow "code phase allows frontend src when FE questions closed" "$out"
+write_state true verify approved approved
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"src/foo.ts","content":"x"}}')"
+expect_deny "verify phase blocks src write" "$out"
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"plans/PROJ-1/e2e/playwright.config.ts","content":"export default {}"}}')"
+expect_allow "verify phase allows Playwright specs under plans/" "$out"
 
 echo "== Multi-ticket plans + dependsOn =="
 mkdir -p "$FIX/.cursor/state"
@@ -546,6 +570,34 @@ printf '%s\n' '{"baseBranch":"main","roles":["backend"],"commands":{"test":"pyte
 out="$(run_hook stop-evidence.mjs '{}')"
 expect_followup "stop-evidence uses discovered test command" "$out" "pytest -q"
 cp "$ROOT/template/awe.config.json" "$FIX/awe.config.json"
+
+write_state true verify approved approved
+rm -f "$FIX/.cursor/state/awe-verify-evidence.json"
+out="$(run_hook stop-evidence.mjs '{}')"
+expect_followup "stop in verify without Playwright evidence" "$out" "Playwright"
+printf '%s\n' '{"playwrightPassed":true,"command":"npx playwright test","at":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' > "$FIX/.cursor/state/awe-verify-evidence.json"
+out="$(run_hook stop-evidence.mjs '{}')"
+expect_empty "stop in verify with fresh Playwright evidence" "$out"
+mkdir -p "$FIX/.cursor/state"
+cat > "$FIX/.cursor/state/awe-state.json" <<EOF
+{
+  "active": true,
+  "ticket": "PROJ-1",
+  "phase": "verify",
+  "roles": {
+    "backend": { "planStatus": "approved", "iteration": 0, "verified": true }
+  },
+  "tickets": {
+    "PROJ-1": {
+      "phase": "verify",
+      "roles": { "backend": { "planStatus": "approved", "iteration": 0, "verified": true } },
+      "verifyIteration": 3
+    }
+  }
+}
+EOF
+out="$(run_hook stop-evidence.mjs '{}')"
+expect_followup "stop when verify budget exhausted" "$out" "VERIFY BUDGET EXHAUSTED"
 
 echo "== post-tool-scan =="
 printf 'const k = "AKIAIOSFODNN7EXAMPLE";\n' > "$FIX/src/leak.ts"

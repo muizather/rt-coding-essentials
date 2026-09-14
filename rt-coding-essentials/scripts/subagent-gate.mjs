@@ -7,7 +7,7 @@
 //   awe-frontend-dev         → phase code AND roles.frontend.planStatus == approved
 //   awe-reviewer             → phase review|code
 //   awe-security-reviewer    → phase review|code (optional agent; still gated if spawned)
-//   awe-verifier             → phase verify
+//   awe-verifier             → phase verify (writes plans/ Playwright; app source denied)
 // Unknown awe-* (including removed awe-repo-dev) → deny.
 // Non-AWE subagents → allow. Missing name field → allow + log (defensive).
 

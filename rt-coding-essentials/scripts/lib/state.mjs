@@ -14,6 +14,7 @@ import path from 'node:path';
 export const STATE_DIR = path.join('.cursor', 'state');
 export const STATE_FILE = 'awe-state.json';
 export const EVIDENCE_FILE = 'awe-evidence.json';
+export const VERIFY_EVIDENCE_FILE = 'awe-verify-evidence.json';
 export const SIGNOFF_FILE = 'awe-signoff.json';
 export const AUDIT_FILE = 'audit.log';
 export const DISCOVERED_FILE = 'awe-discovered.json';
@@ -240,6 +241,49 @@ export function discoverLintCommand(dir = projectDir()) {
   return '';
 }
 
+const COMPOSE_FILES = ['compose.yaml', 'compose.yml', 'docker-compose.yml', 'docker-compose.yaml'];
+
+function startFromRoot(root) {
+  const pkg = readJsonFile(path.join(root, 'package.json')) || {};
+  const scripts = pkg.scripts && typeof pkg.scripts === 'object' ? pkg.scripts : {};
+  const composeFile = COMPOSE_FILES.find((f) => existsRel(root, f)) || null;
+  let start = null;
+  if (scripts.dev) start = 'npm run dev';
+  else if (scripts.start) start = 'npm run start';
+  else if (composeFile) start = 'docker compose up';
+  return { start, composeFile, scripts: Object.keys(scripts) };
+}
+
+/**
+ * How this workspace boots locally. Used by VERIFY (Playwright against localhost).
+ * Never invents URLs or env values.
+ */
+export function discoverLocalRun(dir = projectDir()) {
+  const root = startFromRoot(dir);
+  const repos = discoverGitRepos(dir);
+  const services = repos.map((r) => {
+    const child = startFromRoot(r.path);
+    return {
+      name: r.name,
+      relative: r.relative,
+      start: child.start,
+      composeFile: child.composeFile,
+    };
+  });
+  const notes = [];
+  if (!root.start && !services.some((s) => s.start)) {
+    notes.push('no start command discovered — ask the human once before VERIFY');
+  }
+  return {
+    start: root.start,
+    composeFile: root.composeFile,
+    scripts: root.scripts,
+    services,
+    urls: {},
+    notes,
+  };
+}
+
 /**
  * Git repo family for this workspace.
  * One entry if `dir` is itself a git root; otherwise each depth-1 child that has `.git`.
@@ -356,6 +400,7 @@ function defaultConfig(dir) {
     securityReview: false,
     envUrls: {},
     deployCommands: {},
+    playwright: { package: '@playwright/test', version: '1.61.0' },
   };
 }
 
@@ -379,12 +424,17 @@ export function loadConfig(dir = projectDir()) {
 export function ensureDiscoveredConfig(dir = projectDir()) {
   const existing = loadStateJson(DISCOVERED_FILE, dir);
   if (existing && typeof existing.baseBranch === 'string' && existing.commands?.test) {
+    let dirty = false;
     if (!Array.isArray(existing.gitRepos)) {
       existing.gitRepos = discoverGitRepos(dir);
       existing.roles = discoverRoles(dir);
-      return saveStateJson(DISCOVERED_FILE, existing, dir);
+      dirty = true;
     }
-    return existing;
+    if (!existing.local || typeof existing.local !== 'object') {
+      existing.local = discoverLocalRun(dir);
+      dirty = true;
+    }
+    return dirty ? saveStateJson(DISCOVERED_FILE, existing, dir) : existing;
   }
   const gitRepos = discoverGitRepos(dir);
   const cfg = {
@@ -393,6 +443,7 @@ export function ensureDiscoveredConfig(dir = projectDir()) {
     roles: discoverRoles(dir),
     gitRepos,
     commands: { test: discoverTestCommand(dir), lint: discoverLintCommand(dir) },
+    local: discoverLocalRun(dir),
     reviewIterations: 3,
     triggerMode: 'auto',
     discoveredAt: new Date().toISOString(),

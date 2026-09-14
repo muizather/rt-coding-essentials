@@ -1,22 +1,18 @@
 // AWE stop gate (stop, loop_limit: 8). failClosed: false.
 //
 // `stop` cannot veto completion, but it can return followup_message, which is
-// auto-submitted and forces the agent to continue. We use it for two
-// anti-rationalization checks, only when AWE is active and phase is code|review:
+// auto-submitted and forces the agent to continue. When AWE is active:
 //
-//   1. EVIDENCE: .cursor/state/awe-evidence.json must exist with
-//      { testsPassed: true, command, at } where `at` is < 2 hours old.
-//      "Seems right" is not sufficient — evidence or it didn't happen.
-//   2. REVIEW BUDGET: when every role's iteration has reached
-//      config.reviewIterations, further loops are pointless — the followup
-//      directs the agent to stop and escalate to the human.
+//   1. EVIDENCE (code|review): awe-evidence.json testsPassed + at < 2h.
+//   2. REVIEW BUDGET: all roles' iteration >= reviewIterations → escalate.
+//   3. VERIFY: Playwright awe-verify-evidence.json, or verifyIteration budget.
 //
 // loop_limit (8 in hooks.json) caps how many times this can fire per session,
 // so a stuck agent cannot loop forever.
 
 import {
   runHook, respond, loadState, loadStateJson, loadConfig, isActive,
-  projectDir, minutesSince, EVIDENCE_FILE, listTickets, IMPLEMENT_PHASES,
+  projectDir, minutesSince, EVIDENCE_FILE, VERIFY_EVIDENCE_FILE, listTickets, IMPLEMENT_PHASES,
 } from './lib/state.mjs';
 import { audit } from './lib/audit.mjs';
 
@@ -28,11 +24,13 @@ await runHook(async (input) => {
   if (!isActive(state)) return respond({});
   const tickets = listTickets(state);
   const impl = Object.entries(tickets).filter(([, t]) => IMPLEMENT_PHASES.has(t.phase));
-  if (!impl.length) return respond({});
+  const verifying = Object.entries(tickets).filter(([, t]) => t.phase === 'verify');
 
   const config = loadConfig(dir) || {};
   const testCommand = config.commands?.test || 'npm test';
   const budget = Number.isInteger(config.reviewIterations) ? config.reviewIterations : 3;
+
+  if (!impl.length && !verifying.length) return respond({});
 
   // --- Review iteration budget (per ticket) -----------------------------------
   for (const [id, t] of impl) {
@@ -52,6 +50,43 @@ await runHook(async (input) => {
       });
     }
   }
+
+  // --- VERIFY iteration budget + Playwright evidence --------------------------
+  for (const [id, t] of verifying) {
+    if ((t.verifyIteration ?? 0) >= budget) {
+      audit(dir, 'stop', 'escalate', `verify budget (${budget}) exhausted`, { ticket: id });
+      return respond({
+        followup_message:
+          `VERIFY BUDGET EXHAUSTED: ${id} has used ${budget} Playwright verify iteration(s) without a green run. ` +
+          `Three rounds unresolved = human escalation, not silent shipping. ` +
+          `Do NOT spawn more verify or code rounds. Write plans/${id}/ESCALATION.md ` +
+          `(failed scenarios, what was tried, recommended human decision) and stop for the human.`,
+      });
+    }
+  }
+  if (verifying.length) {
+    const ve = loadStateJson(VERIFY_EVIDENCE_FILE, dir);
+    const vFresh = ve && ve.playwrightPassed === true && minutesSince(ve.at) <= EVIDENCE_MAX_AGE_MIN;
+    if (!vFresh) {
+      const why = !ve
+        ? 'no verify evidence file'
+        : ve.playwrightPassed !== true
+          ? 'playwrightPassed is not true'
+          : 'verify evidence is stale (>2h)';
+      audit(dir, 'stop', 'continue', `missing fresh Playwright evidence (${why})`, {
+        ticket: verifying[0][0],
+      });
+      return respond({
+        followup_message:
+          `ANTI-RATIONALIZATION GATE: No fresh Playwright VERIFY evidence found (${why}). ` +
+          `Run the Gherkin specs with Playwright on localhost and write ` +
+          `.cursor/state/awe-verify-evidence.json as {"playwrightPassed": true, "command": "npx playwright test -c plans/<ticket>/e2e", "video": "<path or null>", "trace": "<path or null>", "at": "<ISO timestamp>"}. ` +
+          `Human steps without a green local run are not VERIFY.`,
+      });
+    }
+  }
+
+  if (!impl.length) return respond({});
 
   // --- Fresh green-test evidence ----------------------------------------------
   const evidence = loadStateJson(EVIDENCE_FILE, dir);

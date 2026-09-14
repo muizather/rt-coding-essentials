@@ -299,8 +299,8 @@ syntax-checks setup + hooks.
    write-gate denies. Point at `.cursor/state/audit.log`.
 6. Answer `open-questions.md` if any → `/awe-architect` → `/awe-approve` → **yes**.
 7. `/awe-code backend` — branch + tests + evidence file (worktree only if another plan is implementing).
-8. `/awe-review backend` → `/awe-verify` — you run `verification.md`, set
-   `verified: true` + initials.
+8. `/awe-review backend` → `/awe-verify` — Playwright on localhost, you watch the
+   recording, set `verified: true` + initials.
 9. `/awe-ship` — or stop before push if this is a throwaway.
 
 Optional: enable GitHub MCP in **this project's** `.cursor/mcp.json` (copy the

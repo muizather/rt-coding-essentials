@@ -1,13 +1,13 @@
 # Agentic Workflow Essentials (AWE)
 
-**A phase-gated, multi-agent workflow harness for [Cursor](https://cursor.com).** Install it as a **Cursor Plugin** (Customize → Install). It brings skills, agents, rules, hooks, and the **codebase-memory** graph. Describe a ticket (or run `/awe-run`); agents chain through code and review. You still say **yes** to the plan and **sign** hands-on verify. No `awe.config.json` required — AWE discovers the default branch and test command. Optional `setup.mjs` remains if you want a repo-committed copy (cloud agents).
+**A phase-gated, multi-agent workflow harness for [Cursor](https://cursor.com).** Install it as a **Cursor Plugin** (Customize → Install). It brings skills, agents, rules, hooks, and the **codebase-memory** graph. Describe a ticket (or run `/awe-run`); agents chain through code and review. You still say **yes** to the plan and **sign** verify after watching the Playwright recording. No `awe.config.json` required — AWE discovers the default branch and test command. Optional `setup.mjs` remains if you want a repo-committed copy (cloud agents).
 
 ```
  ┌─────────┐   ┌────────────┐   ┌──────────┐   ┌────────┐   ┌─────────┐   ┌────────┐   ┌───────┐   ┌──────────────┐
  │ INTAKE  │ → │ ARCHITECT  │ → │ APPROVE  │ → │  CODE  │ → │ REVIEW  │ → │ VERIFY │ → │ SHIP  │ → │ POST-MERGE   │
  │ ticket  │   │ role plans │   │ ▣ HUMAN  │   │ per-   │   │ 3 iters │   │▣ HUMAN │   │ PR +  │   │ E2E          │
- │ sanitize│   │ + contract │   │ gate     │   │ role   │   │ then ▣  │   │ hands- │   │ push  │   │ regressions  │
- │         │   │            │   │          │   │ role    │  │ escalate│   │ on test│   │       │   │ re-enter ▶───┼──┐
+ │ sanitize│   │ + contract │   │ gate     │   │ role   │   │ then ▣  │   │ PW+you │   │ push  │   │ regressions  │
+ │         │   │            │   │          │   │ role    │  │ escalate│   │ record │   │       │   │ re-enter ▶───┼──┐
  └─────────┘   └────────────┘   └──────────┘   └────────┘   └─────────┘   └────────┘   └───────┘   └──────────────┘  │
                                                                                                                     │
    ▣ = human gate                          enforced by Cursor hooks (HARD) + rules (SOFT)         ◀── /awe-regression ┘
@@ -38,7 +38,7 @@ Cursor loads a GitHub URL as a **marketplace**. This repo lists one plugin, **RT
 
 1. If you already added the URL and saw an empty list: **remove that marketplace** (Customize → Plugins → the GitHub source → Remove), then add it again. Cursor pins the first import.
 2. **Customize → Plugins → Add from GitHub** (or `/add-plugin https://github.com/muizather/rt-coding-essentials`).
-3. You should see **RT Coding Essentials**. Install it (user or this-workspace). Enable **codebase-memory** when asked.
+3. You should see **RT Coding Essentials**. Install it (user or this-workspace). Enable **codebase-memory** when asked. A single git repo: install **in that repo**. A parent folder is only for several sibling git clones.
 4. Reload the window.
 
 For a local always-HEAD install, symlink the **plugin folder** (not the repo root):
@@ -148,7 +148,7 @@ Enable codebase-memory MCP when Cursor asks
 Open your app repo → describe the ticket  (or /awe-run PROJ-123)
 ```
 
-Index happens on first run (`index_repository`). Then: answer open questions if any → explicit **yes** on the plan → agents code and review → you run `verification.md` by hand → `/awe-ship` if you want a PR. If GitHub/GitLab/Slack MCP is connected, status posts there; otherwise skip.
+Index happens on first run (`index_repository`). Then: answer open questions if any → explicit **yes** on the plan → agents code and review → verifier runs Gherkin with Playwright on localhost (video/trace) → you watch and sign `verification.md` → `/awe-ship` if you want a PR. If GitHub/GitLab/Slack MCP is connected, status posts there; otherwise skip.
 
 **setup.mjs (optional, repo-local copy)**
 
@@ -186,7 +186,7 @@ Try the whole pipeline on a demo ticket. Nothing here needs a ticket system — 
 4. **Approve** ▣ *you*. `/awe-approve` — read the one-screen summary, say **yes**. Only now can any code be written (before this, the write-gate hook physically denies code edits — try it: ask the agent to "just start coding" and watch it get blocked).
 5. **Code.** `/awe-code backend` — a dev subagent implements the plan test-first on branch `awe/DEMO-1-backend` (a worktree only if another plan is already implementing), then writes fresh test evidence.
 6. **Review.** `/awe-review backend` — two reviewers (functional + security) attack the diff; fixes loop automatically, up to 3 rounds before it escalates to you.
-7. **Verify** ▣ *you*. `/awe-verify` — run the numbered steps in `plans/DEMO-1/verification.md` by hand, flip `verified: true` with your initials.
+7. **Verify** ▣ *you*. `/awe-verify` — Playwright runs the Gherkin on localhost; watch the video (or `show-trace` for API). Flip `verified: true` with your initials.
 8. **Ship.** `/awe-ship` — pre-flight checks, push, and either a PR via MCP or the exact `gh pr create` command printed for you. You merge.
 
 When you're done experimenting: `/awe-regression` is how a post-merge bug re-enters the pipeline, and `node ~/agentic-coding/setup.mjs --uninstall` removes every AWE-managed file cleanly.
@@ -259,9 +259,9 @@ Reviewers only judge a role's own scope — the frontend is never failed because
 /awe-verify
 ```
 
-`awe-verifier` writes `plans/PROJ-123/verification.md`: numbered, observable test steps — setup commands, URLs to open, expected results, screenshots to take — covering per-role checks and combined end-to-end flows mapped 1:1 to the acceptance criteria.
+`awe-verifier` **runs** the architect Gherkin on **localhost** with mandatory Playwright (`@playwright/test@1.61.0`): browser **video** for UI, API **trace** for backend. Failures go back to the coder (`verifyIteration`, budget 3, independent of review). When green, it writes `plans/PROJ-123/verification.md` with recording paths plus numbered human steps mapped 1:1 to the scenarios.
 
-**You** run the steps by hand. All green? Flip the frontmatter:
+Watch the recording (and optionally walk the steps). All matches? Flip the frontmatter:
 
 ```yaml
 verified: true
@@ -269,7 +269,7 @@ initials: "MA"
 date: "2026-09-08"
 ```
 
-Tell the agent; it records `.cursor/state/awe-signoff.json` and unlocks ship. Something broken? `/awe-regression "checkout 500s when cart is empty"` — don't hand-fix code in the verify phase.
+Tell the agent; it records `.cursor/state/awe-signoff.json` and unlocks ship. Something broken after you signed? `/awe-regression "checkout 500s when cart is empty"` — don't hand-fix code in the verify phase. A Playwright fail *before* signoff respawns the coder, not a regression ticket.
 
 ### Phase 7 — SHIP
 
@@ -308,7 +308,7 @@ Not required. Session start writes `.cursor/state/awe-discovered.json` (base bra
 | `ticketSystem` | `none` | `redmine` / `jira` / `github` / `gitlab` for MCP ticket intake; `none` = paste manually |
 | `notifications.enabled` / `.slack` / `.gmail` | `false` | Optional Slack/Gmail nudges. OFF by default; pure good-to-have |
 | `strictSecurity` | `false` | `false`: missing scanners warn and degrade gracefully. `true`: gates fail closed when scanners are missing |
-| `envUrls` | `{}` | staging/prod URLs, used by the verifier's test scripts |
+| `envUrls` | `{}` | staging/prod URLs for **post-merge** E2E. VERIFY itself uses discovered localhost starts |
 | `deployCommands` | `{}` | deploy commands for deploy-verify projects |
 
 ---
@@ -324,7 +324,7 @@ Hooks are small Node scripts (spawned per event, JSON in → JSON out, zero deps
 | `beforeShellExecution` | `before-shell.mjs` | **HARD** (failClosed) | Always: force-push, `npm publish`, `curl\|sh`, `rm -rf /`, metadata IPs, reading `.aws/.ssh/.env`. While active: `git push` denied outside ship; in ship, allowed only from `awe/<ticket>-*` with verified signoff + fresh evidence |
 | `beforeReadFile` | `before-read.mjs` | HARD (fail-open) | Reads of `.env*`, `**/.aws/**`, `**/.ssh/**`, `**/secrets/**` |
 | `postToolUse` (writes) | `post-tool-scan.mjs` | advisory | Injects `additional_context` when a just-written file smells like a secret (built-ins + gitleaks when present) |
-| `subagentStart` | `subagent-gate.mjs` | HARD (fail-open) | Devs only in `code` with an approved plan; reviewers only in `code`/`review`; architect only in `intake`/`architect`; verifier only in `verify` |
+| `subagentStart` | `subagent-gate.mjs` | HARD (fail-open) | Devs only in `code` with an approved plan; reviewers only in `code`/`review`; architect only in `intake`/`architect`; verifier only in `verify` (coder respawn from VERIFY sets phase `code` first) |
 | `stop` (loop_limit 8) | `stop-evidence.mjs` | **HARD-ish** | Can't veto completion, but auto-submits a followup forcing the agent to produce fresh test evidence — or to escalate when the review budget is spent |
 | `sessionStart` | `session-context.mjs` | SOFT | Briefs each session: ticket, phase, plan statuses, open-question count |
 
@@ -347,7 +347,8 @@ AWE pins every subagent to **Composer 2.5** — which is in the Cursor Models po
 | Agent | Pin | Why |
 |---|---|---|
 | `awe-backend-dev`, `awe-frontend-dev` | `composer-2.5-fast` | **Interactive** — a human is usually watching while code is written, so latency is felt |
-| `awe-architect`, `awe-reviewer`, `awe-security-reviewer`, `awe-verifier` | `composer-2.5[fast=false]` | **Unattended** — read-only planning/review/verification, often cloud or overnight; latency doesn't matter, cost does |
+| `awe-architect`, `awe-reviewer`, `awe-security-reviewer` | `composer-2.5[fast=false]` | **Unattended** — planning/review, often cloud or overnight |
+| `awe-verifier` | `composer-2.5[fast=false]` | Runs Playwright from Gherkin, then waits on you for the recording |
 
 **Change a pin** by editing the single `model:` line in that agent's `.cursor/agents/awe-*.md` frontmatter. If a pinned model isn't available on your plan, Cursor **falls back gracefully** (the run still happens on an available model). **Escape hatch:** set `model: inherit` to use whatever model the parent chat is running.
 
@@ -385,7 +386,7 @@ AWE pins every subagent to **Composer 2.5** — which is in the Cursor Models po
 | **L2** Phase gating | no code before approval; subagents only in their phase; pushes only in ship | `pre-tool-gate.mjs`, `subagent-gate.mjs`, `before-shell.mjs` |
 | **L3** Evidence gates | fresh green-test evidence to end a session; verified human signoff to push; secrets scanned on every write | `stop-evidence.mjs`, `post-tool-scan.mjs` |
 | **L4** CI hard gate | server-side re-verification: tests, lint, gitleaks, semgrep, osv-scanner, CodeQL, checkov + cfn-guard (IaC), ZAP baseline (DAST, when a target URL is configured) | `--ci github` / `--ci gitlab` workflow |
-| **L5** Human gates | APPROVE (plans) and VERIFY (hands-on testing) — a human, on the record | `/awe-approve`, `/awe-verify` |
+| **L5** Human gates | APPROVE (plans) and VERIFY (watch Playwright recording, then sign) | `/awe-approve`, `/awe-verify` |
 
 Plus: untrusted-input doctrine (ticket/PR/web text is data, never instructions), least-privilege optional MCPs, required codebase-memory, and an append-only audit log.
 

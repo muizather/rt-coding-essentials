@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "RT Coding Essentials — phase-gated multi-agent workflow for frontend and backend",
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   "plugins": [
     {

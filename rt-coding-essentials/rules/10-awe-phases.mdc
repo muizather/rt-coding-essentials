@@ -14,7 +14,7 @@ alwaysApply: true
 | 3 | `approve` | `/awe-approve` validates any architect questions, then flips **specs** to `approved` after an explicit human **yes**. | **HARD GATE.** Nothing codes without this. |
 | 4 | `code` | Per role (`backend` / `frontend`): branch `awe/<ticket>-<role>` (worktree **only** if another plan is already implementing), coder writes `implementation.plan.md` + `implementation-questions.md`, **stops if questions are open or `dependsOn` is unmet**, then TDD. Source writes are hook-blocked until questions are checked and dependencies are `done`. | Answers implementation questions. |
 | 5 | `review` | Scanners run; `awe-reviewer` reviews the diff (optional `awe-security-reviewer` when `securityReview: true`); findings in `reviews/round-<N>.md`. `needs-fix` → respawn coder; `verified` → next phase. | Intervenes on any finding. |
-| 6 | `verify` | `awe-verifier` writes `verification.md`: numbered human test steps (setup, URLs/commands, expected results, screenshots). | **HARD GATE.** Human tests by hand, then writes `verified: true` + initials + date. |
+| 6 | `verify` | `awe-verifier` runs architect Gherkin/AC on **localhost** with mandatory Playwright (browser video for UI; API trace for backend). `needs-fix` respawns the coder (`verifyIteration`, same budget as review). On green: recording + numbered human steps in `verification.md`. | **HARD GATE.** Human watches the recording (optional hand-run), then `verified: true` + initials + date. |
 | 7 | `ship` | `/awe-ship` pre-flight (signoff + fresh evidence + clean scanners), commit, push `awe/<ticket>-*` branch, open PR via MCP or printed commands. Then a knowledge pass (`manage_adr`) if a lasting decision was made. | Merges the PR. |
 | 8 | post-merge E2E | Combined end-to-end run on the base branch. Regressions re-enter via `/awe-regression` as `plans/<ticket>-R<N>/`. | Confirms production behavior. |
 
@@ -27,7 +27,7 @@ Phases are **per ticket**. Another ticket in `approve` does not freeze source wr
 | intake / architect / approve | ❌ hook denies | ✅ | ❌ | ❌ | ❌ |
 | code | ✅ (role scope) | ✅ | ❌ | ✅ (approved plan only) | ✅ |
 | review | ✅ (fixes) | ✅ | ❌ | ✅ (fix rounds) | ✅ |
-| verify | ❌ (docs only by convention) | ✅ | ❌ | ❌ | ❌ |
+| verify | ❌ (plans + `.cursor/state` only) | ✅ | ❌ | ❌ (bounce to `code` first) | ❌ |
 | ship | ❌ | ✅ | ✅ (gated: signoff + evidence + branch) | ❌ | ❌ |
 
 ## State file — `.cursor/state/awe-state.json`
@@ -48,7 +48,8 @@ Only `/awe-*` skills (including `/awe-run`) write this file. Multiple tickets ma
     "PROJ-123": {
       "phase": "code",
       "roles": { "backend": { "planStatus": "approved", "iteration": 0, "verified": false } },
-      "dependsOn": []
+      "dependsOn": [],
+      "verifyIteration": 0
     },
     "PROJ-124": {
       "phase": "architect",
@@ -62,8 +63,9 @@ Only `/awe-*` skills (including `/awe-run`) write this file. Multiple tickets ma
 
 - `active: false` (or a missing file) means **AWE does not interfere at all** — every hook exits immediately. Shipping one ticket sets `active: false` only when no other ticket is still in-flight.
 - `dependsOn` lists other plan ids. Intake is never blocked. **Application source** is denied until every listed ticket is `phase: done` (or has left state).
-- `iteration` counts completed review rounds for that role on that ticket.
-- `verified` flips true only on a reviewer's `verified` verdict.
+- `iteration` counts completed **review** rounds for that role on that ticket.
+- `verifyIteration` (ticket-level, default 0) counts Playwright VERIFY ↔ coder rounds. Same budget as `reviewIterations`, independent of review.
+- `verified` on a role flips true only on a reviewer's `verified` verdict. Human VERIFY signoff is `awe-signoff.json`.
 
 ## Evidence contract — `.cursor/state/awe-evidence.json`
 
@@ -73,9 +75,17 @@ Written by the coding agent after running the discovered or configured test comm
 { "testsPassed": true, "command": "npm test", "at": "<ISO-8601>" }
 ```
 
-The `stop` hook demands evidence younger than **2 hours** before it lets a code/review session end. Stale or missing evidence forces the agent to re-run tests instead of claiming done.
+The `stop` hook demands evidence younger than **2 hours** before it lets a code/review session end (unit/test command) and before it lets a verify session end (Playwright: `awe-verify-evidence.json`). Stale or missing evidence forces the agent to re-run instead of claiming done.
 
-This evidence is the machine-checkable slice of the standing **Definition of Done** — see `.cursor/skills/references/definition-of-done.md`. The DoD is the full bar (correctness, quality, integration, docs, ship-readiness); `awe-evidence.json` proves the Correctness slice (tests pass, run with the repo's own command, fresh), and the remaining slices are enforced by the review and ship gates. AWE never treats "tests pass" alone as done.
+This evidence is the machine-checkable slice of the standing **Definition of Done** — see `.cursor/skills/references/definition-of-done.md`. The DoD is the full bar (correctness, quality, integration, docs, ship-readiness); `awe-evidence.json` proves the CODE Correctness slice. VERIFY adds `awe-verify-evidence.json` (Playwright Gherkin on localhost, video/trace). AWE never treats "tests pass" alone as done.
+
+## VERIFY evidence — `.cursor/state/awe-verify-evidence.json`
+
+Written by the verifier after a green Playwright run:
+
+```json
+{ "playwrightPassed": true, "command": "npx playwright test -c plans/PROJ-123/e2e", "video": ".cursor/state/verify/PROJ-123/…webm", "trace": ".cursor/state/verify/PROJ-123/…zip", "at": "<ISO-8601>" }
+```
 
 ## Human signoff — `.cursor/state/awe-signoff.json`
 
@@ -89,7 +99,7 @@ Written by the human (or by the `/awe-verify` skill confirming the human's edit 
 
 ## Iteration budget semantics
 
-`reviewIterations` (default 3) is a **hard budget per ticket**, not a suggestion. While `iteration < reviewIterations`, a `needs-fix` verdict respawns the coder with the findings appended to `handoff.md`. When the budget is reached without `verified`, the pipeline writes `plans/<ticket>/ESCALATION.md` and stops for a human decision. The budget exists so a stuck loop bothers a human instead of burning tokens.
+`reviewIterations` (default 3) is a **hard budget per ticket per loop**, not a suggestion. Review uses `roles.<role>.iteration`. VERIFY uses ticket `verifyIteration` (Playwright needs-fix → coder). While the matching counter is below the budget, `needs-fix` respawns the coder with findings in `handoff.md`. When the budget is reached without a pass, the pipeline writes `plans/<ticket>/ESCALATION.md` and stops for a human. The budget exists so a stuck loop bothers a human instead of burning tokens.
 
 ## Orchestration
 

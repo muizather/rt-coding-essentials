@@ -14,6 +14,7 @@ On first use in a workspace, settings live in `.cursor/state/awe-discovered.json
 - **baseBranch** — `origin/HEAD`, else `main` / `master` / `develop`, else the current branch
 - **commands.test** — this repo's actual test script (`package.json` / `pytest` / `go test` / `cargo test` / `make test` / wrappers). Never assume `npm test` without looking
 - **roles** — `backend` and/or `frontend` from the tree; default `backend`. Never child-repo folder names.
+- **local** — how this workspace starts (`package.json` `dev`/`start`, compose files, per-git-child services). VERIFY uses this; never invent URLs. One git root = one project (install the plugin in that folder). A parent of child git repos = family. There is no required “architect” parent folder.
 
 If `awe.config.json` exists, its fields win. Hooks read the merged result via `loadConfig`.
 
@@ -49,7 +50,7 @@ Optional markdown under the app's `docs/` only if the human asked for committed 
 
 ## Orchestration
 
-Prefer `/awe-run` (or a natural-language ticket). It chains intake → architect → code → review until tests are green. It **stops** for an explicit **yes** at APPROVE and for hands-on VERIFY. Hedged chat is not approval. A second `/awe-run` while another plan is open **starts a new plan** (or resumes the named ticket). It records `dependsOn` when the work shares a surface; it does not refuse intake.
+Prefer `/awe-run` (or a natural-language ticket). It chains intake → architect → code → review until tests are green. It **stops** for an explicit **yes** at APPROVE and for VERIFY (watch the Playwright recording, then sign). Hedged chat is not approval. A second `/awe-run` while another plan is open **starts a new plan** (or resumes the named ticket). It records `dependsOn` when the work shares a surface; it does not refuse intake.
 
 ## Optional reporting
 
