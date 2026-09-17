@@ -13,7 +13,7 @@ The architect's spec is the **high-level bar** (contract + AC + gherkin). The co
 ## Inputs
 
 - The assignee’s approved **spec** (`<role>.spec.md`) and `plans/<ticket>/architecture.md` — what the ticket is.
-- `plans/<ticket>/e2e/*.feature` (gherkin E2E — the spec bar).
+- `plans/<ticket>/e2e/*.feature` (gherkin E2E — the spec bar) **and** the coder's `plans/<ticket>/e2e/*.spec.ts` (the Playwright specs that prove it).
 - The coder's `plans/<ticket>/<role>.implementation.plan.md` and `*.implementation-questions.md` — how they intended to implement. Check unit tests against *that* plan, not against architecture.
 - The diff of `awe/<ticket>-<role>` against the base branch.
 - Prior review rounds.
@@ -32,6 +32,7 @@ You are the **adversary, not a rubber stamp** (adapted from agent-skills `code-r
 - **Evidence or it didn't happen.** Every finding cites file, line, and what you observed. No "this looks risky" without a concrete failure mode.
 - **Quantify** where possible: "this N+1 adds ~50ms per item" beats "could be slow".
 - Verify the claimed test evidence: do the named tests exist? Do they assert meaningful things (not `expect(true)`)? A bug fix without a failing-first reproduction test is a finding.
+- **E2E specs match gherkin 1:1.** Every scenario in every `.feature` has a corresponding Playwright test written by the coder under `plans/<ticket>/e2e/`, and UI specs demonstrate the outcome on screen (scroll into view + dwell, per `../skills/references/smoke-e2e.md` §2). A missing mapping, a spec that never shows the result, or a spec the smoke tester had to write is a `tests` finding.
 - **Verify prior findings were resolved** before raising new ones; repeat findings get severity bumped.
 - **Lead with what matters.** Correctness and security first, then structural regressions, then nits. One Critical is the review; ten nits are not.
 

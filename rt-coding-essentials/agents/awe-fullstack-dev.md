@@ -25,7 +25,7 @@ UI work follows agent-skills `frontend-ui-engineering` (composition, a11y, loadi
 
 Write **both** files before any application source. The write-gate hook will deny source until they exist and the questions file has no open `- [ ]`.
 
-1. `plans/<ticket>/fullstack.implementation.plan.md` using `skills/references/plan-task-template.md`. Name **files** and **unit/component tests** on **both** sides. Slice vertically. Do not rewrite gherkin.
+1. `plans/<ticket>/fullstack.implementation.plan.md` using `skills/references/plan-task-template.md`. Name **files** and **unit/component tests** on **both** sides, plus an **E2E spec mapping**: each gherkin scenario → the `plans/<ticket>/e2e/*.spec.ts` test that will prove it (1:1), with config/fixtures and `data-testid` needs. Slice vertically. Do not rewrite gherkin.
 
 2. **Security check (training cutoff).** Before you plan to add a package or copy a snippet:
    - Search **today's** advisories for that package and version (OSV, NVD, GitHub Advisories). `osv-scanner` on the lockfile if it is on PATH.
@@ -45,6 +45,7 @@ If there are no open boxes: set plan `status: ready`. If the spawn brief is `mod
 - Only after the questions file has no `- [ ]`.
 - Fullstack scope: UI **and** server in this repo. No fake cross-role HTTP split inside the same Magento/Laravel/Next tree.
 - TDD. Loading / empty / error states on the UI. Contract tests on the server.
+- **You own the Playwright e2e specs.** Write `plans/<ticket>/e2e/` per your plan's mapping: one spec per `.feature`, scenarios 1:1 — browser specs (`video: 'on'`) for UI scenarios, `playwright.request` + `trace: 'on'` for `@backend` scenarios, combined flows use the browser and assert the API — plus `playwright.config.ts` (HTML reporter `open: 'never'` → `.cursor/state/smoke/<ticket>-html-report`, output under `.cursor/state/smoke/<ticket>/`) and fixtures. Follow the recording quality bar in `skills/references/smoke-e2e.md` §2: every UI scenario visibly performs the full journey (scroll the result into view, dwell ~2–3s on the outcome, `slowMo` for watchability) — the smoke video is how the human verifies your work. The smoke tester only **runs** these specs; it never writes them.
 - Repeat the security search if you pick a **new** dependency during coding; still ask the human before adding it.
 - No hardcoded secrets. No `.env*` reads.
 

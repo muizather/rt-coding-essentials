@@ -15,7 +15,7 @@ description: >-
 Human gates that still stop you:
 
 1. **APPROVE** — after architecture, present the summary and wait for an explicit **yes**. Hedges are not approval (`/awe-approve` procedure).
-2. **SMOKE** — after review is green, follow `/awe-smoke`: Playwright from Gherkin on localhost, coder loop if it fails, then wait for the human to open the HTML report and sign. Then you may `/awe-ship` if they want.
+2. **SMOKE** — after review is green, follow `/awe-smoke`: the smoke tester runs the coder's Playwright specs (from Gherkin) on localhost and verifies the recordings actually show the feature, coder loop if it fails, then wait for the human to open the HTML report and sign. Then you may `/awe-ship` if they want.
 
 ## 0. Bootstrap (every run)
 
@@ -30,7 +30,7 @@ Human gates that still stop you:
 
 ## 1. Intake → architect
 
-Follow `/awe-intake` then `/awe-architect` in this chat (spawn `awe-architect`). Architect produces **high-level spec + gherkin**, not file lists. If **architect** open questions block, write them, report, and **wait**. Zero architect questions is fine.
+Follow `/awe-intake` then `/awe-architect` in this chat (spawn `awe-architect`). Architect produces **high-level spec + gherkin + a Decision surface**, not file lists. Whenever open questions exist (intake, architect, or later implementation questions), present them in chat with Cursor's structured question prompt — recommended option first — and record the answers back into the questions file, which stays the source of truth. If questions remain open after asking, report and **wait**. Zero architect questions is fine when the Decision surface shows the feature was fully determined.
 
 ## 2. Approve (hard stop)
 
@@ -44,7 +44,7 @@ When every role is reviewer-`verified`, set `phase: smoke`.
 
 ## 4. Smoke (hard stop)
 
-Follow `/awe-smoke`: spawn `awe-smoke-tester` (Playwright from Gherkin, localhost), loop needs-fix to the coder up to `reviewIterations`, then hand the **HTML report** + smoke-folder README + `smoke.md` to the human. Wait until frontmatter `signed: true` with initials + date, then write signoff and `phase: ship`. Do not push before that.
+Follow `/awe-smoke`: spawn `awe-smoke-tester` (runs the coder's Playwright specs from Gherkin on localhost, never writes test code), loop needs-fix to the coder up to `reviewIterations`, then hand the **HTML report** + smoke-folder README + `smoke.md` to the human. Wait until frontmatter `signed: true` with initials + date, then write signoff and `phase: ship`. Do not push before that.
 
 ## 5. Ship + knowledge
 

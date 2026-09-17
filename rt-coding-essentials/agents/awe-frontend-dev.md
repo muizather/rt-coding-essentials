@@ -21,7 +21,7 @@ You need the **real UI code**, not the high-level spec. Use codebase-memory at f
 
 Write **both** files before any application source. The write-gate hook will deny UI source until they exist and the questions file has no open `- [ ]`.
 
-1. `plans/<ticket>/frontend.implementation.plan.md` using `skills/references/plan-task-template.md`. Name **files** and **unit/component tests**. Do not rewrite gherkin.
+1. `plans/<ticket>/frontend.implementation.plan.md` using `skills/references/plan-task-template.md`. Name **files** and **unit/component tests**, plus an **E2E spec mapping**: each gherkin scenario → the `plans/<ticket>/e2e/*.spec.ts` test that will prove it (1:1), the config/fixtures needed, and any `data-testid` hooks you will add. Do not rewrite gherkin.
 
 2. **Security check (training cutoff).** Models freeze. A CVE or XSS advisory published after training is invisible unless you look it up. Before you plan to add a package (UI kit, markdown renderer, `dangerouslySetInnerHTML` helper) or copy a snippet:
    - Search **today's** advisories for that package and version (OSV, NVD, GitHub Advisories). `osv-scanner` on the lockfile if it is on PATH.
@@ -42,6 +42,7 @@ If there are no open boxes: set plan `status: ready`. If the spawn brief is `mod
 - Only after the questions file has no `- [ ]`.
 - Frontend scope only. Mock/stub the contract if backend is not ready.
 - TDD. Loading / empty / error states.
+- **You own the Playwright e2e specs.** Write `plans/<ticket>/e2e/` per your plan's mapping: one spec per `.feature`, scenarios 1:1, `playwright.config.ts` (`video`/`trace`/`screenshot: 'on'`, HTML reporter `open: 'never'` → `.cursor/state/smoke/<ticket>-html-report`, output under `.cursor/state/smoke/<ticket>/`), fixtures. Follow the recording quality bar in `skills/references/smoke-e2e.md` §2 — every UI scenario must visibly perform the full journey (scroll the result into view, dwell ~2–3s on the outcome, `slowMo` for watchability), because the smoke video is how the human verifies your work. Add `data-testid` attributes in your components where selectors would be brittle. The smoke tester only **runs** these specs; it never writes them.
 - Repeat the security search if you pick a **new** dependency during coding; still ask the human before adding it.
 - No hardcoded secrets.
 

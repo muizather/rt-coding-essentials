@@ -157,7 +157,7 @@ Enable codebase-memory MCP when Cursor asks
 Open your app repo → describe the ticket  (or /awe-run PROJ-123)
 ```
 
-Index happens on first run (`index_repository`). Then: answer open questions if any → explicit **yes** on the plan → agents code and review → smoke tester runs Gherkin with Playwright on localhost (HTML report + video/trace) → you watch the report and sign `smoke.md` → `/awe-ship` if you want a PR. Status always lands in `plans/<ticket>/ticket-updates.md`; if a ticket/Slack MCP can comment, the same bullets go there.
+Index happens on first run (`index_repository`). Then: answer open questions if any (asked in chat via the structured question card, recorded in the questions file) → explicit **yes** on the plan → agents code and review (the coder also writes the Playwright e2e specs from the Gherkin) → smoke tester runs those specs on localhost and verifies the recordings actually show the feature (HTML report + video/trace) → you watch the report and sign `smoke.md` → `/awe-ship` if you want a PR. Status always lands in `plans/<ticket>/ticket-updates.md`; if a ticket/Slack MCP can comment, the same bullets go there.
 
 **setup.mjs (optional, repo-local copy)**
 
@@ -229,7 +229,7 @@ When you're done experimenting: `/awe-regression` is how a post-merge bug re-ent
 /awe-architect
 ```
 
-Spawns the read-only `awe-architect` subagent: it reads any `docs/awe/` briefing that exists (PRD, apps, connections, deploy — skip missing files; they never block), then your repo (memory MCP when available), then writes `architecture.md` (approach + rejected alternatives + **contract**) and one `<role>.spec.md` per enabled role (`backend` / `frontend` / `fullstack`). The spec is **high-level** — no source file lists. Coding agents decide files after you approve. If this ticket taught a lasting domain fact, the parent skill may update `docs/awe/`; skip if nothing new.
+Spawns the read-only `awe-architect` subagent: it reads any `docs/awe/` briefing that exists (PRD, apps, connections, deploy — skip missing files; they never block), then your repo (memory MCP when available), then writes `architecture.md` (approach + rejected alternatives + **Decision surface** + **contract**) and one `<role>.spec.md` per enabled role (`backend` / `frontend` / `fullstack`). The spec is **high-level** — no source file lists. The **Decision surface** is where product-level decisions get made: input constraints (types, sizes, validation), placement/business logic (as options with trade-offs when implementations differ), ownership/persistence, edge cases, scope — each decided with rationale or asked in `open-questions.md` with a recommendation, so they never surface for the first time inside a coder's implementation plan. Coding agents decide files after you approve. If this ticket taught a lasting domain fact, the parent skill may update `docs/awe/`; skip if nothing new.
 
 ### Phase 3 — APPROVE ▣ *human gate*
 
@@ -246,7 +246,7 @@ AWE verifies every open question is answered and every cross-role dependency ack
 /awe-code fullstack    # same-repo UI+server (no sibling SPA)
 ```
 
-Each role implements on branch `awe/PROJ-123-<role>` cut from your base branch, plus a `handoff.md` brief. A **git worktree** (`.worktrees/<ticket>-<role>`) is created only when another in-flight plan is already in `code|review|smoke|ship` — otherwise the main checkout is used. The role dev first writes a **low-level** `implementation.plan.md` (files, unit tests, today's advisory search for any package it will use) and `implementation-questions.md`. Open implementation questions **block source writes** (hook) until you answer them. If this ticket's `dependsOn` lists a plan that is not `done` yet, **implementation** is blocked (intake and architect are not). Then it implements only its approved spec, builds cross-role needs against contract stubs, writes the named unit tests, runs your test command, and writes fresh evidence to `.cursor/state/awe-evidence.json`. Try to end the session without that evidence and the `stop` hook sends the agent back to work.
+Each role implements on branch `awe/PROJ-123-<role>` cut from your base branch, plus a `handoff.md` brief. A **git worktree** (`.worktrees/<ticket>-<role>`) is created only when another in-flight plan is already in `code|review|smoke|ship` — otherwise the main checkout is used. The role dev first writes a **low-level** `implementation.plan.md` (files, unit tests, an **e2e spec mapping** of each gherkin scenario to a Playwright spec, today's advisory search for any package it will use) and `implementation-questions.md`. Open implementation questions **block source writes** (hook) until you answer them — they're asked in chat via the structured question card and recorded back into the file. If this ticket's `dependsOn` lists a plan that is not `done` yet, **implementation** is blocked (intake and architect are not). Then it implements only its approved spec, builds cross-role needs against contract stubs, writes the named unit tests **and the Playwright e2e specs** under `plans/<ticket>/e2e/` (the smoke tester only runs them), runs your test command, and writes fresh evidence to `.cursor/state/awe-evidence.json`. Try to end the session without that evidence and the `stop` hook sends the agent back to work.
 
 ### Phase 5 — REVIEW
 
@@ -268,7 +268,7 @@ Reviewers only judge a role's own scope — the frontend is never failed because
 /awe-smoke
 ```
 
-`awe-smoke-tester` **runs** the architect Gherkin on **localhost** with mandatory Playwright (`@playwright/test@1.61.0`): browser **video** for UI, API **trace** for backend, **HTML report** as the combined viewer (`npx playwright show-report .cursor/state/smoke/<ticket>-html-report`). Failures go back to the coder (`smokeIteration`, budget 3, independent of review). When green, it writes:
+`awe-smoke-tester` **runs** the coder's Playwright specs (built 1:1 from the architect Gherkin) on **localhost** with mandatory Playwright (`@playwright/test@1.61.0`) — it never writes or edits test code; a missing, broken, or under-demonstrating spec goes back to the coder as `needs-fix`. Every UI recording must **visibly show the complete journey** — full flow from page top, the result scrolled into view, a ~2–3s dwell on the outcome — so the video is real proof, not a formality (a happy-path video under ~15–20s is a red flag). Browser **video** for UI, API **trace** for backend, **HTML report** as the combined viewer (`npx playwright show-report .cursor/state/smoke/<ticket>-html-report`). Failures go back to the coder (`smokeIteration`, budget 3, independent of review). When green, it writes:
 
 - `plans/PROJ-123/smoke.md` — numbered human steps + signoff frontmatter
 - `plans/PROJ-123/e2e/run-smoke.sh` — portable re-run
@@ -361,7 +361,7 @@ AWE pins every subagent to **Composer 2.5** — which is in the Cursor Models po
 |---|---|---|
 | `awe-backend-dev`, `awe-frontend-dev`, `awe-fullstack-dev` | `composer-2.5-fast` | **Interactive** — a human is usually watching while code is written, so latency is felt |
 | `awe-architect`, `awe-reviewer`, `awe-security-reviewer` | `composer-2.5[fast=false]` | **Unattended** — planning/review, often cloud or overnight |
-| `awe-smoke-tester` | `composer-2.5[fast=false]` | Runs Playwright from Gherkin, writes HTML report + steps, then waits on you |
+| `awe-smoke-tester` | `composer-2.5[fast=false]` | Runs the coder's Playwright specs (from Gherkin), verifies the videos actually show the feature, writes HTML report + steps, then waits on you |
 
 **Change a pin** by editing the single `model:` line in that agent's `.cursor/agents/awe-*.md` frontmatter. If a pinned model isn't available on your plan, Cursor **falls back gracefully** (the run still happens on an available model). **Escape hatch:** set `model: inherit` to use whatever model the parent chat is running.
 

@@ -219,8 +219,11 @@ Each implements on branch `awe/<ticket>-<role>`. A worktree is used only when
 another plan already occupies a checkout. Frontend codes against the **contract
 stub** in `architecture.md` so a missing API does not fail frontend review.
 
-**Async questions:** intake writes `plans/<ticket>/open-questions.md`. You
-check boxes whenever you want. Other tickets continue at intake/architect;
+**Questions:** intake writes `plans/<ticket>/open-questions.md` and asks them
+immediately in chat via Cursor's structured question card (GUESS first,
+"Other" always available); answers are recorded back into the file. You can
+also just check boxes in the file whenever you want — it stays the source of
+truth. Other tickets continue at intake/architect;
 implementation of a dependent ticket waits until `dependsOn` is `done`.
 
 **MCP in the flow:** if a ticket MCP is enabled in **project** `mcp.json`,

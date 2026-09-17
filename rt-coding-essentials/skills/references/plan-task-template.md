@@ -5,7 +5,7 @@
 
 The **platform architect** does **not** use this template. Architect output is `architecture.md` + gherkin E2E + per-repo `spec.md` (see `spec-plan.md`).
 
-**Coding agents** emit `implementation.plan.md` with this task contract (files + **unit tests**). Gherkin under `plans/<ticket>/e2e/` is the feature E2E bar and is not duplicated here.
+**Coding agents** emit `implementation.plan.md` with this task contract (files + **unit tests**) plus an **E2E spec mapping**: every gherkin scenario under `plans/<ticket>/e2e/*.feature` → the `*.spec.ts` test that will prove it (1:1), with config/fixtures and `data-testid` needs. The coding agent writes those Playwright specs in implement mode, to the recording quality bar in `smoke-e2e.md` §2 (the smoke video must visibly show the feature); the smoke tester only runs them.
 
 Always also write `plans/<ticket>/<role>.implementation-questions.md` in the same pass. The write-gate blocks application source until that file exists and has no open `- [ ]`. Zero questions is valid (`No open questions.`).
 

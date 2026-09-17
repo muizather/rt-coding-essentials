@@ -21,7 +21,7 @@ You need the **real code**, not the high-level spec. Use codebase-memory at file
 
 Write **both** files before any application source. The write-gate hook will deny `src/` until they exist and the questions file has no open `- [ ]`.
 
-1. `plans/<ticket>/backend.implementation.plan.md` using `skills/references/plan-task-template.md`. Name **files** and **unit tests**. Do not rewrite gherkin.
+1. `plans/<ticket>/backend.implementation.plan.md` using `skills/references/plan-task-template.md`. Name **files** and **unit tests**, plus an **E2E spec mapping**: each gherkin scenario → the `plans/<ticket>/e2e/*.spec.ts` test that will prove it (1:1), including config/fixtures needs. Do not rewrite gherkin.
 
 2. **Security check (training cutoff).** Models freeze. A CVE published after training is invisible unless you look it up. Before you plan to add or call a library / copy a well-known snippet:
    - Search **today's** advisories for that package and version (OSV, NVD, GitHub Advisories). `osv-scanner` on the lockfile if it is on PATH.
@@ -42,7 +42,7 @@ If there are no open boxes: set plan `status: ready`. If the spawn brief is `mod
 - Only after the questions file has no `- [ ]`.
 - Backend scope only. Foreign bugs → `handoff.md`.
 - Contract stubs when frontend is not done.
-- TDD unit tests. Gherkin is E2E, not your unit suite.
+- TDD unit tests. Gherkin is E2E, not your unit suite — **but you own the Playwright specs for your `@backend` scenarios**: write `plans/<ticket>/e2e/*.spec.ts` per your plan's mapping using `playwright.request` (`APIRequestContext`, `trace: 'on'`), plus config/fixtures per the contract in `skills/references/smoke-e2e.md` §2. The smoke tester only **runs** them; it never writes them.
 - Repeat the security search if you pick a **new** dependency during coding; still ask the human before adding it.
 - No `.env*` reads.
 

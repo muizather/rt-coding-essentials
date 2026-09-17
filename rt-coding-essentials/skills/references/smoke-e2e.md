@@ -2,6 +2,8 @@
 
 Gherkin under `plans/<ticket>/e2e/*.feature` plus intake acceptance criteria are the bar. The **smoke tester** **runs** that bar on localhost. Unit tests and the reviewer are not a substitute.
 
+**Division of labor:** the **coding agents write** the Playwright specs (they built the routes, selectors, and states), the smoke tester **only runs them** — it never writes or edits test code. A missing, stale, broken, or under-demonstrating spec is a `needs-fix` finding back to the coder, never something smoke patches itself.
+
 Playwright is **mandatory**. Frontend scenarios use a browser (video). Backend scenarios use Playwright `APIRequestContext` (trace). Combined flows use both. Pin **`@playwright/test@1.61.0`** (current as of 2026-09-17). Do not add it without an explicit human yes.
 
 Do **not** stitch per-test videos into one file. Playwright already writes an **HTML report** that lists every scenario with its video and trace. That is the combined viewer.
@@ -21,24 +23,36 @@ Write the slice for this ticket as `plans/<ticket>/local-run.md`: services up, m
 
 If you cannot start the slice locally, **STOP**. Do not fake E2E.
 
-## 2. Playwright from Gherkin
+## 2. Specs come from the coder — smoke only runs them
 
-Specs live under `plans/<ticket>/e2e/` (smoke may write `plans/` and `.cursor/state/`, not application source):
+The coder already turned the gherkin into Playwright specs under `plans/<ticket>/e2e/` during the code phase. Before running anything, **verify the mapping and the config**:
 
-- `playwright.config.ts` — `video: 'on'`, `trace: 'on'`, `screenshot: 'on'`, `baseURL` from local discovery, output under `.cursor/state/smoke/<ticket>/` (gitignored). **HTML reporter required** (`open: 'never'`) writing to `.cursor/state/smoke/<ticket>-html-report`.
 - One spec file per `.feature`, scenarios mapped **1:1**. Tag `@backend` for API-only; untagged/default is browser.
 - Backend tests: `playwright.request` against the local API. No browser, no second HTTP framework.
 - Frontend / combined: browser actions that match the Gherkin steps; assert observable UI **and** API side effects when the scenario names them.
+- `playwright.config.ts` — `video: 'on'`, `trace: 'on'`, `screenshot: 'on'`, `baseURL` from local discovery, output under `.cursor/state/smoke/<ticket>/` (gitignored). **HTML reporter required** (`open: 'never'`) writing to `.cursor/state/smoke/<ticket>-html-report`.
+
+A missing, stale, or mismatched spec is a `needs-fix` finding (category `tests`) back to the coder. Smoke never writes or edits specs, config, or fixtures.
 
 First time the app repo has no `@playwright/test`: ask to add `1.61.0` as a devDependency and run `npx playwright install chromium`. No yes → stop; SMOKE cannot skip Playwright.
+
+### The video is the deliverable (recording quality bar)
+
+A green run the human cannot *watch* is not evidence. Every UI scenario's recording must show the **complete user journey**, not just the first viewport. The coder writes specs to this bar; the smoke tester enforces it:
+
+- **Full journey on screen.** Start at the page top; perform the steps as a user would (real typing, real clicks). Bring every key element into view with `scrollIntoViewIfNeeded()` — never assert against an element the video never shows.
+- **Dwell on the outcome.** Every scenario exists to prove an observable result (the mockup, the saved row, the error toast). The last action of every UI test scrolls that result on screen and holds it ~2–3s (a short `waitForTimeout` after the final assertion) so the recording lingers on the proof.
+- **Human pace, not machine pace.** Use `launchOptions: { slowMo: 250 }` (or per-step pauses) on recorded runs so interactions are followable. A happy-path UI video shorter than ~15–20s is a red flag, not a success.
+- **Self-check before evidence.** After a green run, inspect each UI video (duration + final screenshot / trace) and confirm the scenario's expected outcome is actually visible. A video that never shows the outcome or never scrolls = the spec is under-demonstrating → `needs-fix` to the coder (the *spec's demonstration* gets fixed — unless the app itself is broken).
+- The numbered human steps in `smoke.md` must describe what is **visible in the recordings**, so the human can cross-check video against steps.
 
 ## 3. Run, loop, evidence
 
 Run against localhost only (`npx playwright test -c plans/<ticket>/e2e`). Use a **portable** command: no sandbox `PLAYWRIGHT_BROWSERS_PATH`, no machine-only `--prefix` unless that path is this workspace. Coverage: collect if the repo already has a Playwright/v8 coverage hook; otherwise note which ticket-touched files the trace/network hit. Coverage is evidence of the slice, not a new numeric gate unless `CONSTRAINTS.md` already has one.
 
-**Fail** → structured findings (same schema as review: `file`, `line`, `severity`, `category`, `evidence`, `suggested_fix`). Orchestrator sets phase `code`, increments `smokeIteration`, appends `handoff.md`, respawns the matching coder. Budget is `reviewIterations` (default 3) **on this smoke counter, independent of review rounds**. Exhausted → `ESCALATION.md` and stop. Append the same bullets to `plans/<ticket>/ticket-updates.md` (and MCP-comment if `mcp-report.md` says the tools exist).
+**Fail** — *or green with recordings that fail the §2 quality bar* → structured findings (same schema as review: `file`, `line`, `severity`, `category`, `evidence`, `suggested_fix`; use category `tests` when the spec's demonstration is the problem). Orchestrator sets phase `code`, increments `smokeIteration`, appends `handoff.md`, respawns the matching coder. Budget is `reviewIterations` (default 3) **on this smoke counter, independent of review rounds**. Exhausted → `ESCALATION.md` and stop. Append the same bullets to `plans/<ticket>/ticket-updates.md` (and MCP-comment if `mcp-report.md` says the tools exist).
 
-**Green** → write these artifacts (all of them):
+**Green with watchable recordings** (§2 self-check done) → write these artifacts (all of them):
 
 1. `.cursor/state/awe-smoke-evidence.json` — portable command, `htmlReport`, video/trace (first UI video if several; also `videos[]` when there is more than one):
 

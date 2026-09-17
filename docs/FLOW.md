@@ -39,7 +39,7 @@ flowchart TD
 
 **1 — INTAKE** (`/awe-intake`). Pulls the ticket via the ticket MCP (or you paste text), treats it as **untrusted data**, and writes a sanitized `plans/<ticket>/intake.md` plus `open-questions.md` — each question carries a hypothesis, a confidence number, and a `GUESS:` so you answer with one word. Writes `awe-state.json` (`phase: architect`) **merged** into `tickets` — other in-flight plans stay. If this work shares a surface with an open plan, record `dependsOn`; do **not** refuse the new plan. *Hook involved:* `pre-tool-gate.mjs` allows writes only under `plans/` and `.cursor/state/` for tickets still in a planning phase.
 
-**2 — ARCHITECT** (`/awe-architect`). The `awe-architect` subagent (gated by `subagent-gate.mjs`) turns the spec into `architecture.md` (cross-role contract) and one `<role>.spec.md` per role (`backend` / `frontend`). High-level only — no source file lists. Open questions are optional.
+**2 — ARCHITECT** (`/awe-architect`). The `awe-architect` subagent (gated by `subagent-gate.mjs`) turns the spec into `architecture.md` (cross-role contract + mandatory **Decision surface**: product-level decisions — input constraints, placement/business logic, ownership, edge cases, scope — decided-with-rationale or asked as options with trade-offs) and one `<role>.spec.md` per role (`backend` / `frontend`). High-level only — no source file lists. Product decisions must not surface for the first time in a coder's implementation plan.
 
 **3 — APPROVE** (`/awe-approve`) ▣ **human gate**. Validates any architect questions are answered, rejects hedged approvals ("looks reasonable" ≠ yes), then flips each **spec** to `status: approved`. *Hooks involved:* `pre-tool-gate.mjs` blocks **this ticket's** code writes until this flips its `phase: code`; another ticket already in `code` is not frozen. The plan-clobber guard makes approved specs append-only.
 
@@ -47,7 +47,7 @@ flowchart TD
 
 **5 — REVIEW** (`/awe-review <role>`). Runs scanners, then spawns `awe-reviewer` — a fresh-context **adversarial** pass over the diff against the spec, gherkin, and implementation plan. `awe-security-reviewer` is optional (`securityReview: true`). Findings are severity-labeled (Critical ⇒ the iteration fails). *needs-fix* respawns the coder; *verified* moves on; three unresolved rounds write `ESCALATION.md` and hand it to you.
 
-**6 — SMOKE** (`/awe-smoke`) ▣ **human gate**. The `awe-smoke-tester` runs architect Gherkin on **localhost** with mandatory Playwright (browser **video** for UI; API **trace** for backend; **HTML report** as the combined viewer). Failures respawn the coder (`smokeIteration`, budget 3). On green it writes `smoke.md`, `e2e/run-smoke.sh`, and `.cursor/state/smoke/<ticket>/README.md`. You open `npx playwright show-report .cursor/state/smoke/<ticket>-html-report` and sign; a post-signoff failure is stop-the-line → `/awe-regression`. On pass you set `signed: true` + initials + date, and the skill writes `awe-signoff.json`.
+**6 — SMOKE** (`/awe-smoke`) ▣ **human gate**. The `awe-smoke-tester` **runs the coder's Playwright specs** (built 1:1 from the architect Gherkin during the code phase) on **localhost** — it never writes test code. Every UI recording must visibly show the complete journey and dwell on the outcome; a video that doesn't is a `needs-fix`, not evidence. Browser **video** for UI; API **trace** for backend; **HTML report** as the combined viewer. Failures respawn the coder (`smokeIteration`, budget 3). On green it writes `smoke.md`, `e2e/run-smoke.sh`, and `.cursor/state/smoke/<ticket>/README.md`. You open `npx playwright show-report .cursor/state/smoke/<ticket>-html-report` and sign; a post-signoff failure is stop-the-line → `/awe-regression`. On pass you set `signed: true` + initials + date, and the skill writes `awe-signoff.json`.
 
 **7 — SHIP** (`/awe-ship`). Pre-flight checks signoff + fresh evidence + clean scanners, writes the **Ship Decision** artifact (`ship-decision.md`: GO/NO-GO + rollback plan + RTO) and checks the **ADR docs gate**. Then commits, pushes `awe/<ticket>-*` (allowed by `before-shell.mjs` only now), and opens the PR via MCP or printed `gh`/`glab` commands.
 
@@ -80,7 +80,7 @@ sequenceDiagram
     Hooks-->>Orch: allow (plans/ is writable in every phase)
     Orch->>Files: write intake.md (hypothesis + confidence) and open-questions.md (Q + GUESS, grouped by role)
     Orch->>Files: write awe-state.json (active, phase=architect)
-    Orch-->>Human: N open questions — answer at your pace, then /awe-intake --resume
+    Orch-->>Human: N open questions — asked in chat (structured card, GUESS first) AND in the file; answer either way, then /awe-intake --resume
 
     Note over Human,Files: ASYNC — non-blocking, other tickets/tasks proceed meanwhile
     Human->>Files: edit open-questions.md (check the box, answer — one word on a GUESS is fine)
@@ -157,7 +157,7 @@ sequenceDiagram
     end
 
     Human->>Orch: /awe-smoke
-    Orch->>Files: discover local start; Playwright specs from gherkin
+    Orch->>Files: discover local start; run the coder's Playwright specs (gherkin 1:1); verify recordings show the feature
     Orch->>Orch: npx playwright test (localhost)
     alt Playwright needs-fix AND smokeIteration below budget
         Orch->>Files: bump smokeIteration, append findings to handoff.md

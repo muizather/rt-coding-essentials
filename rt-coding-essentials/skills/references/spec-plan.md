@@ -14,6 +14,8 @@ Writes:
 
 `spec.md` says **what** that role owes (behavior, contract side, which gherkin it must satisfy). Still no file paths, no unit-test names.
 
+**Decision surface (mandatory).** The architect owns the product-level decisions: input constraints (accepted types, size limits, validation/rejection), placement & business logic (presented as **options with trade-offs** when implementations differ materially — never one leading guess that hides the alternative), ownership & persistence, edge cases & failure UX, scope boundaries. Each is either decided-with-rationale in `architecture.md` § Decision surface or asked in `open-questions.md` with options + a recommendation. The coder owns only how-at-file-level. **If a product decision first appears in an implementation plan, the architect under-specified** — send it back.
+
 **Fullstack** is one role when the same git root owns the product UI and the server and there is no sibling SPA. Magento + a Next.js sibling is **not** fullstack — Magento is backend, Next is frontend.
 
 Human approves **architecture + specs + gherkin**. That unlocks the code phase — not application source yet.
@@ -24,11 +26,11 @@ Sees: approved spec for **its** role, the contract, the gherkin, any `docs/awe/`
 
 Writes, **before any application source**:
 
-1. `plans/<ticket>/<role>.implementation.plan.md` — files, unit tests, how, plus a **Security check** (today's advisories for packages it will use).
+1. `plans/<ticket>/<role>.implementation.plan.md` — files, unit tests, how, an **E2E spec mapping** (each gherkin scenario → the `plans/<ticket>/e2e/*.spec.ts` test that will prove it, 1:1, plus config/fixtures and `data-testid` needs), plus a **Security check** (today's advisories for packages it will use).
 2. `plans/<ticket>/<role>.implementation-questions.md` — low-level questions for the human, or `No open questions.` A task cannot start while any `- [ ]` is open. The write-gate hook enforces this.
 
-Then implements test-first against that implementation plan.
+Then implements test-first against that implementation plan — **including the Playwright e2e specs** under `plans/<ticket>/e2e/` (specs, `playwright.config.ts`, fixtures). The coder knows the routes, selectors, and states it built, so it owns the specs and writes them to the recording quality bar in `smoke-e2e.md` (scroll the outcome into view, dwell on it — the smoke video is how the human verifies the feature). The smoke tester only **runs** these specs; it never writes them.
 
 ## Reviewer
 
-Functional review is against **gherkin + spec AC + contract + the implementation plan**, not against “the whole codebase.” The reviewer writes a short testing plan from those artifacts, then hunts the diff. Optional `awe-security-reviewer` runs only when `securityReview` is true. Unit tests are the coder’s proof; gherkin is the spec bar **SMOKE runs with Playwright** on localhost (HTML report + video / API trace), then the human signs. The coder records each round in `reviews/round-N-response.md`.
+Functional review is against **gherkin + spec AC + contract + the implementation plan**, not against “the whole codebase.” The reviewer writes a short testing plan from those artifacts, then hunts the diff — including checking the coder's e2e specs map 1:1 to the gherkin. Optional `awe-security-reviewer` runs only when `securityReview` is true. Unit tests are the coder’s proof; gherkin is the spec bar. The coder turns gherkin into Playwright specs; **SMOKE runs those specs** on localhost (HTML report + video / API trace that visibly show the feature), then the human signs. The coder records each round in `reviews/round-N-response.md`.

@@ -48,9 +48,9 @@ git -C "$REPO" checkout -B awe/<ticket>-<role> origin/<baseBranch>
 - Implementation questions: plans/<ticket>/<role>.implementation-questions.md
 - Iteration: <N> of <reviewIterations>
 ## Expectations
-- Plan mode: files + unit tests + security advisory search + questions. No application source.
+- Plan mode: files + unit tests + e2e spec mapping (each gherkin scenario → plans/<ticket>/e2e/*.spec.ts, 1:1) + security advisory search + questions. No application source.
 - Implement mode: only after every implementation question is checked. TDD.
-- Gherkin is E2E spec; unit tests are yours.
+- Gherkin is the E2E spec; **the coder turns it into Playwright specs** (plans/<ticket>/e2e/: specs, playwright.config.ts, fixtures) following the recording quality bar in references/smoke-e2e.md. The smoke tester only runs them — it never writes test code.
 - Run this repo’s test command; write awe-evidence.json when green.
 ## Prior review findings
 <latest round or "none yet">
@@ -75,7 +75,7 @@ that FAILS        to make it         tests still
 
 6. **Spawn** `awe-backend-dev`, `awe-frontend-dev`, or `awe-fullstack-dev` only (match the role). Brief includes `mode: plan` or `mode: implement`. Do **not** spawn implement while `dependsOn` is unmet. Fullstack must not fan out into FE+BE.
 7. **When plan mode returns:**
-   - If `*.implementation-questions.md` still has `- [ ]` → tell the human where to answer. **Do not** continue to implement or to `/awe-review`.
+   - If `*.implementation-questions.md` still has `- [ ]` → present each open question with Cursor's structured question prompt (the coder's `GUESS` as the first/recommended option plus realistic alternatives; "Other" is always available) and record the answers into the file (`- [x]` + answer). The file remains the source of truth — the human may also edit it directly and re-run `/awe-code <role>`. Dismissed or skipped questions stay open: **do not** continue to implement or to `/awe-review` while any box is unchecked.
    - If `dependsOn` is unmet → tell the human which tickets must reach `done`. **Do not** spawn implement.
    - If no open boxes and dependsOn done → immediately spawn again with `mode: implement` (same chat), unless the human asked to read the plan first.
 8. **When implement mode returns:** sanity-check tests green and `.cursor/state/awe-evidence.json` (`testsPassed: true`, fresh). If this was a review fix round, confirm `plans/<ticket>/reviews/round-<N>-response.md` maps every finding. Append `ticket-updates.md`. Report what to manually check.
@@ -97,4 +97,4 @@ that FAILS        to make it         tests still
 ## Exit criteria
 
 - **Plan stop:** implementation plan + questions on disk; human knows to answer, that implement will start, or that a `dependsOn` ticket must finish first.
-- **Implement done:** branch `awe/<ticket>-<role>` exists (worktree only if parallel); TDD; fresh evidence; human knows review vs the other role.
+- **Implement done:** branch `awe/<ticket>-<role>` exists (worktree only if parallel); TDD; e2e specs on disk under `plans/<ticket>/e2e/` mapping 1:1 to the gherkin; fresh evidence; human knows review vs the other role.
