@@ -1,10 +1,10 @@
 # Agentic Workflow Essentials (AWE)
 
-**A phase-gated, multi-agent workflow harness for [Cursor](https://cursor.com).** Install it as a **Cursor Plugin** (Customize → Install). It brings skills, agents, rules, hooks, and the **codebase-memory** graph. Describe a ticket (or run `/awe-run`); agents chain through code and review. You still say **yes** to the plan and **sign** verify after watching the Playwright recording. No `awe.config.json` required — AWE discovers the default branch and test command. Optional `setup.mjs` remains if you want a repo-committed copy (cloud agents).
+**A phase-gated, multi-agent workflow harness for [Cursor](https://cursor.com).** Install it as a **Cursor Plugin** (Customize → Install). It brings skills, agents, rules, hooks, and the **codebase-memory** graph. Describe a ticket (or run `/awe-run`); agents chain through code and review. You still say **yes** to the plan and **sign** the smoke report after watching the Playwright recording. No `awe.config.json` required — AWE discovers the default branch and test command. Optional `setup.mjs` remains if you want a repo-committed copy (cloud agents).
 
 ```
  ┌─────────┐   ┌────────────┐   ┌──────────┐   ┌────────┐   ┌─────────┐   ┌────────┐   ┌───────┐   ┌──────────────┐
- │ INTAKE  │ → │ ARCHITECT  │ → │ APPROVE  │ → │  CODE  │ → │ REVIEW  │ → │ VERIFY │ → │ SHIP  │ → │ POST-MERGE   │
+ │ INTAKE  │ → │ ARCHITECT  │ → │ APPROVE  │ → │  CODE  │ → │ REVIEW  │ → │ SMOKE  │ → │ SHIP  │ → │ POST-MERGE   │
  │ ticket  │   │ role plans │   │ ▣ HUMAN  │   │ per-   │   │ 3 iters │   │▣ HUMAN │   │ PR +  │   │ E2E          │
  │ sanitize│   │ + contract │   │ gate     │   │ role   │   │ then ▣  │   │ PW+you │   │ push  │   │ regressions  │
  │         │   │            │   │          │   │ role    │  │ escalate│   │ record │   │       │   │ re-enter ▶───┼──┐
@@ -22,7 +22,7 @@
 
 - **Hook** — a small script Cursor runs around an agent action (write a file, run a shell command, spawn a subagent, end a session) that can allow or deny it. AWE's hard enforcement lives here.
 - **Skill** — a playbook (`/awe-run`, `/awe-intake`, …). `/awe-run` chains phases; hooks still block skipped gates.
-- **Subagent** — a fresh-context agent the main chat spawns for one bounded job (architect, role dev, reviewer, verifier). Isolation is the point: a reviewer that didn't write the code reviews it honestly.
+- **Subagent** — a fresh-context agent the main chat spawns for one bounded job (architect, role dev, reviewer, smoke tester). Isolation is the point: a reviewer that didn't write the code reviews it honestly.
 - **MCP** — Model Context Protocol. **codebase-memory** is required (enable it once on the plugin). GitHub / GitLab / Redmine / Jira / Slack are optional — if connected, agents journal `ticket-updates.md` and comment on the originating ticket; if not, the pipeline still runs. See [docs/GUIDE.md](docs/GUIDE.md).
 - **Worktree** — a second checkout of the same repo on its own branch. AWE creates one only when two plans are implementing at once (so they do not clobber each other). A single implementing ticket uses the main working tree.
 
@@ -94,12 +94,12 @@ your-project/
     │   └── 40-awe-project-custom.mdc   # YOURS — only if you ran setup.mjs
     ├── agents/                     # AWE-managed subagents
     │   ├── awe-architect.md            (read-only planner)
-    │   ├── awe-backend-dev.md / awe-frontend-dev.md
+    │   ├── awe-backend-dev.md / awe-frontend-dev.md / awe-fullstack-dev.md
     │   ├── awe-reviewer.md
     │   ├── awe-security-reviewer.md   (optional — spawned only when securityReview: true)
-    │   └── awe-verifier.md             (writes your human test script)
+    │   └── awe-smoke-tester.md             (writes your human test script)
     ├── skills/                     # /awe-run /awe-intake /awe-architect /awe-approve /awe-code
-    │   ├── …                       # /awe-review /awe-verify /awe-ship /awe-regression /awe-remember
+    │   ├── …                       # /awe-review /awe-smoke /awe-ship /awe-regression /awe-remember
     │   └── references/             #   the long checklists: review rubric, security checklist,
     │                               #   ship-decision, definition-of-done, plan template, debugging triage
     └── mcp.json                    # everything disabled; copy what you need from _disabled_examples
@@ -140,7 +140,7 @@ Optional (via `--ci github` / `--ci gitlab`): a CI workflow that re-runs tests +
 |---|---|---|
 | **Slack / Gmail MCP** | Notifications ("3 open questions waiting on you") | **OFF by default** — pure good-to-have. AWE is fully functional without any notification channel. |
 | **ngrok** | Local integration testing against external webhooks | Skip the webhook tests |
-| **AWS credentials** | Deploy-verify flows for AWS projects | Verification steps stay local |
+| **AWS credentials** | Deploy-smoke flows for AWS projects | Smoke steps stay local |
 | **semgrep / gitleaks / osv-scanner binaries** | Deeper local scanning during review | Hooks log a warning and use built-in secret patterns; CI still runs the full scanners |
 | **cfn-guard binary** (3.2.1; CloudFormation projects only) | Policy-as-code checks on CFN templates against your `*.guard` rules | CFN policy checks simply don't run; checkov still covers IaC in CI |
 | **sequential-thinking MCP** | A structured scratchpad for very large architecture decompositions | Architect works normally |
@@ -157,7 +157,7 @@ Enable codebase-memory MCP when Cursor asks
 Open your app repo → describe the ticket  (or /awe-run PROJ-123)
 ```
 
-Index happens on first run (`index_repository`). Then: answer open questions if any → explicit **yes** on the plan → agents code and review → verifier runs Gherkin with Playwright on localhost (HTML report + video/trace) → you watch the report and sign `verification.md` → `/awe-ship` if you want a PR. Status always lands in `plans/<ticket>/ticket-updates.md`; if a ticket/Slack MCP can comment, the same bullets go there.
+Index happens on first run (`index_repository`). Then: answer open questions if any → explicit **yes** on the plan → agents code and review → smoke tester runs Gherkin with Playwright on localhost (HTML report + video/trace) → you watch the report and sign `smoke.md` → `/awe-ship` if you want a PR. Status always lands in `plans/<ticket>/ticket-updates.md`; if a ticket/Slack MCP can comment, the same bullets go there.
 
 **setup.mjs (optional, repo-local copy)**
 
@@ -195,7 +195,7 @@ Try the whole pipeline on a demo ticket. Nothing here needs a ticket system — 
 4. **Approve** ▣ *you*. `/awe-approve` — read the one-screen summary, say **yes**. Only now can any code be written (before this, the write-gate hook physically denies code edits — try it: ask the agent to "just start coding" and watch it get blocked).
 5. **Code.** `/awe-code backend` — a dev subagent implements the plan test-first on branch `awe/DEMO-1-backend` (a worktree only if another plan is already implementing), then writes fresh test evidence.
 6. **Review.** `/awe-review backend` — two reviewers (functional + security) attack the diff; fixes loop automatically, up to 3 rounds before it escalates to you.
-7. **Verify** ▣ *you*. `/awe-verify` — Playwright runs the Gherkin on localhost; open the HTML report (`npx playwright show-report .cursor/state/verify/<ticket>-html-report`). Flip `verified: true` with your initials.
+7. **Smoke** ▣ *you*. `/awe-smoke` — Playwright runs the Gherkin on localhost; open the HTML report (`npx playwright show-report .cursor/state/smoke/<ticket>-html-report`). Flip `signed: true` with your initials.
 8. **Ship.** `/awe-ship` — pre-flight checks, push, and either a PR via MCP or the exact `gh pr create` command printed for you. You merge.
 
 When you're done experimenting: `/awe-regression` is how a post-merge bug re-enters the pipeline, and `node ~/agentic-coding/setup.mjs --uninstall` removes every AWE-managed file cleanly.
@@ -204,7 +204,7 @@ When you're done experimenting: `/awe-regression` is how a post-merge bug re-ent
 
 ## 4. Daily workflow
 
-> One ticket flows through 8 phases. You interact with **two human gates** (approve, verify) and answer questions asynchronously. Everything else is agents doing bounded work with hard guardrails.
+> One ticket flows through 8 phases. You interact with **two human gates** (approve, smoke) and answer questions asynchronously. Everything else is agents doing bounded work with hard guardrails.
 >
 > 📊 **Prefer pictures?** [docs/FLOW.md](docs/FLOW.md) has the full pipeline as a flowchart plus sequence diagrams (hooks, sanitization, evidence loop, CI). **[docs/GUIDE.md](docs/GUIDE.md)** is the demonstration guide: project vs user install, MCP "this project / for myself", what is actually running, the hook test suite, and a 10-minute live demo script.
 
@@ -229,7 +229,7 @@ When you're done experimenting: `/awe-regression` is how a post-merge bug re-ent
 /awe-architect
 ```
 
-Spawns the read-only `awe-architect` subagent: it studies your repo (memory MCP when available), then writes `architecture.md` (approach + rejected alternatives + **cross-role contract**) and one `<role>.spec.md` per enabled role (`backend` / `frontend`). The spec is **high-level** — no source file lists. Coding agents decide files after you approve.
+Spawns the read-only `awe-architect` subagent: it reads any `docs/awe/` briefing that exists (PRD, apps, connections, deploy — skip missing files; they never block), then your repo (memory MCP when available), then writes `architecture.md` (approach + rejected alternatives + **contract**) and one `<role>.spec.md` per enabled role (`backend` / `frontend` / `fullstack`). The spec is **high-level** — no source file lists. Coding agents decide files after you approve. If this ticket taught a lasting domain fact, the parent skill may update `docs/awe/`; skip if nothing new.
 
 ### Phase 3 — APPROVE ▣ *human gate*
 
@@ -242,11 +242,11 @@ AWE verifies every open question is answered and every cross-role dependency ack
 ### Phase 4 — CODE
 
 ```
-/awe-code backend      # in one chat
-/awe-code frontend     # in another chat, in parallel
+/awe-code backend      # or frontend, in parallel when split
+/awe-code fullstack    # same-repo UI+server (no sibling SPA)
 ```
 
-Each role implements on branch `awe/PROJ-123-<role>` cut from your base branch, plus a `handoff.md` brief. A **git worktree** (`.worktrees/<ticket>-<role>`) is created only when another in-flight plan is already in `code|review|verify|ship` — otherwise the main checkout is used. The role dev first writes a **low-level** `implementation.plan.md` (files, unit tests, today's advisory search for any package it will use) and `implementation-questions.md`. Open implementation questions **block source writes** (hook) until you answer them. If this ticket's `dependsOn` lists a plan that is not `done` yet, **implementation** is blocked (intake and architect are not). Then it implements only its approved spec, builds cross-role needs against contract stubs, writes the named unit tests, runs your test command, and writes fresh evidence to `.cursor/state/awe-evidence.json`. Try to end the session without that evidence and the `stop` hook sends the agent back to work.
+Each role implements on branch `awe/PROJ-123-<role>` cut from your base branch, plus a `handoff.md` brief. A **git worktree** (`.worktrees/<ticket>-<role>`) is created only when another in-flight plan is already in `code|review|smoke|ship` — otherwise the main checkout is used. The role dev first writes a **low-level** `implementation.plan.md` (files, unit tests, today's advisory search for any package it will use) and `implementation-questions.md`. Open implementation questions **block source writes** (hook) until you answer them. If this ticket's `dependsOn` lists a plan that is not `done` yet, **implementation** is blocked (intake and architect are not). Then it implements only its approved spec, builds cross-role needs against contract stubs, writes the named unit tests, runs your test command, and writes fresh evidence to `.cursor/state/awe-evidence.json`. Try to end the session without that evidence and the `stop` hook sends the agent back to work.
 
 ### Phase 5 — REVIEW
 
@@ -258,21 +258,21 @@ Scanners run (built-in secrets always; gitleaks/semgrep/osv-scanner when install
 
 - `needs-fix` → findings go into `handoff.md`, the coder writes `reviews/round-N-response.md` (fixed / rebutted / deferred) and is respawned. Up to **3 iterations** (your configured `reviewIterations`).
 - Budget exhausted → `plans/PROJ-123/ESCALATION.md` and a stop for **your** decision. Never silent shipping.
-- `verified` from the required reviewer(s) → role marked verified; when all roles pass, phase becomes `verify`.
+- `verified` from the required reviewer(s) → role marked verified; when all roles pass, phase becomes `smoke`.
 
 Reviewers only judge a role's own scope — the frontend is never failed because the backend API doesn't exist yet; the contract stub is the correct artifact.
 
-### Phase 6 — VERIFY ▣ *human gate*
+### Phase 6 — SMOKE ▣ *human gate*
 
 ```
-/awe-verify
+/awe-smoke
 ```
 
-`awe-verifier` **runs** the architect Gherkin on **localhost** with mandatory Playwright (`@playwright/test@1.61.0`): browser **video** for UI, API **trace** for backend, **HTML report** as the combined viewer (`npx playwright show-report .cursor/state/verify/<ticket>-html-report`). Failures go back to the coder (`verifyIteration`, budget 3, independent of review). When green, it writes:
+`awe-smoke-tester` **runs** the architect Gherkin on **localhost** with mandatory Playwright (`@playwright/test@1.61.0`): browser **video** for UI, API **trace** for backend, **HTML report** as the combined viewer (`npx playwright show-report .cursor/state/smoke/<ticket>-html-report`). Failures go back to the coder (`smokeIteration`, budget 3, independent of review). When green, it writes:
 
-- `plans/PROJ-123/verification.md` — numbered human steps + signoff frontmatter
-- `plans/PROJ-123/e2e/run-verify.sh` — portable re-run
-- `.cursor/state/verify/PROJ-123/README.md` — sits next to the traces (what/where/how)
+- `plans/PROJ-123/smoke.md` — numbered human steps + signoff frontmatter
+- `plans/PROJ-123/e2e/run-smoke.sh` — portable re-run
+- `.cursor/state/smoke/PROJ-123/README.md` — sits next to the traces (what/where/how)
 
 Open the HTML report first (every scenario, video, and trace in one UI). Optionally walk the steps. All matches? Flip the frontmatter:
 
@@ -282,7 +282,7 @@ initials: "MA"
 date: "2026-09-08"
 ```
 
-Tell the agent; it records `.cursor/state/awe-signoff.json` and unlocks ship. Something broken after you signed? `/awe-regression "checkout 500s when cart is empty"` — don't hand-fix code in the verify phase. A Playwright fail *before* signoff respawns the coder, not a regression ticket.
+Tell the agent; it records `.cursor/state/awe-signoff.json` and unlocks ship. Something broken after you signed? `/awe-regression "checkout 500s when cart is empty"` — don't hand-fix code in the smoke phase. A Playwright fail *before* signoff respawns the coder, not a regression ticket.
 
 ### Phase 7 — SHIP
 
@@ -294,13 +294,13 @@ Pre-flight (signoff present, evidence < 2h old, scanners clean) → commit → p
 
 ### Phase 8 — POST-MERGE E2E
 
-After merging: pull the base branch, run the combined E2E section of `verification.md` against the merged result. A regression isn't a quick patch — it re-enters the pipeline:
+After merging: pull the base branch, run the combined E2E section of `smoke.md` against the merged result. A regression isn't a quick patch — it re-enters the pipeline:
 
 ```
 /awe-regression "what broke"
 ```
 
-This creates `plans/PROJ-123-R1/` linked to the original architecture, diffs, and verification results (including *why verification missed it*), and restarts at ARCHITECT with full context.
+This creates `plans/PROJ-123-R1/` linked to the original architecture, diffs, and verification results (including *why smoke missed it*), and restarts at ARCHITECT with full context.
 
 ---
 
@@ -312,17 +312,17 @@ Not required. Session start writes `.cursor/state/awe-discovered.json` (base bra
 |---|---|---|
 | `projectName` | dir name | Display name used in reports |
 | `baseBranch` | `develop` | Branches `awe/<ticket>-*` are cut from here; PRs target it |
-| `roles` | `["backend","frontend"]` | Which role plans/devs/reviews exist (`backend`, `frontend`) |
+| `roles` | `["backend","frontend"]` | Which coder agents exist (`backend`, `frontend`, `fullstack`). `fullstack` is exclusive. Discovery: CMS + sibling SPA (ipromo Magento + Next) → split; same-repo UI+server → fullstack |
 | `securityReview` | `false` | When `true`, `/awe-review` also spawns `awe-security-reviewer`. Default off. |
 | `commands.test` | discovered | Must exit 0 when green. Optional file overrides `.cursor/state/awe-discovered.json` |
 | `commands.lint` | `npm run lint` | Run before each review round |
 | `reviewIterations` | `3` | needs-fix rounds per ticket before human escalation |
-| `triggerMode` | `auto` | `/awe-run` chains phases. APPROVE and VERIFY stay human-gated |
+| `triggerMode` | `auto` | `/awe-run` chains phases. APPROVE and SMOKE stay human-gated |
 | `ticketSystem` | `none` | `redmine` / `jira` / `github` / `gitlab` for MCP ticket intake; `none` = paste manually |
 | `notifications.enabled` / `.slack` / `.gmail` | `false` | Optional Slack/Gmail nudges. OFF by default; pure good-to-have |
 | `strictSecurity` | `false` | `false`: missing scanners warn and degrade gracefully. `true`: gates fail closed when scanners are missing |
-| `envUrls` | `{}` | staging/prod URLs for **post-merge** E2E. VERIFY itself uses discovered localhost starts |
-| `deployCommands` | `{}` | deploy commands for deploy-verify projects |
+| `envUrls` | `{}` | staging/prod URLs for **post-merge** E2E. SMOKE itself uses discovered localhost starts |
+| `deployCommands` | `{}` | deploy commands for deploy-smoke projects |
 
 ---
 
@@ -337,7 +337,7 @@ Hooks are small Node scripts (spawned per event, JSON in → JSON out, zero deps
 | `beforeShellExecution` | `before-shell.mjs` | **HARD** (failClosed) | Always: force-push, `npm publish`, `curl\|sh`, `rm -rf /`, metadata IPs, reading `.aws/.ssh/.env`. While active: `git push` denied outside ship; in ship, allowed only from `awe/<ticket>-*` with verified signoff + fresh evidence |
 | `beforeReadFile` | `before-read.mjs` | HARD (fail-open) | Reads of `.env*`, `**/.aws/**`, `**/.ssh/**`, `**/secrets/**` |
 | `postToolUse` (writes) | `post-tool-scan.mjs` | advisory | Injects `additional_context` when a just-written file smells like a secret (built-ins + gitleaks when present) |
-| `subagentStart` | `subagent-gate.mjs` | HARD (fail-open) | Devs only in `code` with an approved plan; reviewers only in `code`/`review`; architect only in `intake`/`architect`; verifier only in `verify` (coder respawn from VERIFY sets phase `code` first) |
+| `subagentStart` | `subagent-gate.mjs` | HARD (fail-open) | Devs only in `code` with an approved plan; reviewers only in `code`/`review`; architect only in `intake`/`architect`; smoke tester only in `smoke` (coder respawn from SMOKE sets phase `code` first) |
 | `stop` (loop_limit 8) | `stop-evidence.mjs` | **HARD-ish** | Can't veto completion, but auto-submits a followup forcing the agent to produce fresh test evidence — or to escalate when the review budget is spent |
 | `sessionStart` | `session-context.mjs` | SOFT | Briefs each session: ticket, phase, plan statuses, open-question count |
 
@@ -359,13 +359,13 @@ AWE pins every subagent to **Composer 2.5** — which is in the Cursor Models po
 
 | Agent | Pin | Why |
 |---|---|---|
-| `awe-backend-dev`, `awe-frontend-dev` | `composer-2.5-fast` | **Interactive** — a human is usually watching while code is written, so latency is felt |
+| `awe-backend-dev`, `awe-frontend-dev`, `awe-fullstack-dev` | `composer-2.5-fast` | **Interactive** — a human is usually watching while code is written, so latency is felt |
 | `awe-architect`, `awe-reviewer`, `awe-security-reviewer` | `composer-2.5[fast=false]` | **Unattended** — planning/review, often cloud or overnight |
-| `awe-verifier` | `composer-2.5[fast=false]` | Runs Playwright from Gherkin, writes HTML report + steps, then waits on you |
+| `awe-smoke-tester` | `composer-2.5[fast=false]` | Runs Playwright from Gherkin, writes HTML report + steps, then waits on you |
 
 **Change a pin** by editing the single `model:` line in that agent's `.cursor/agents/awe-*.md` frontmatter. If a pinned model isn't available on your plan, Cursor **falls back gracefully** (the run still happens on an available model). **Escape hatch:** set `model: inherit` to use whatever model the parent chat is running.
 
-**Approximate cost per full ticket loop** (intake → architect → approve → code ×2 roles → review ≤3 iters → verify → ship), Composer 2.5:
+**Approximate cost per full ticket loop** (intake → architect → approve → code × roles → review ≤3 iters → smoke → ship), Composer 2.5:
 
 | Routing strategy | Fast used for | ≈ Cost / ticket |
 |---|---|---|
@@ -377,7 +377,7 @@ AWE pins every subagent to **Composer 2.5** — which is in the Cursor Models po
 
 - **Plugin hooks travel with the install.** Cloud agents still only see **repo-committed** `.cursor/hooks.json`. Use `setup.mjs` if `@cursor` on a PR must hit the same gates.
 - **codebase-memory is required** locally; enable it on the plugin. Slack/GitHub/GitLab reporting is optional.
-- **Auto trigger:** `/awe-run` chains until approve/verify. Keep those human.
+- **Auto trigger:** `/awe-run` chains until approve/smoke. Keep those human.
 
 ---
 
@@ -399,7 +399,7 @@ AWE pins every subagent to **Composer 2.5** — which is in the Cursor Models po
 | **L2** Phase gating | no code before approval; subagents only in their phase; pushes only in ship | `pre-tool-gate.mjs`, `subagent-gate.mjs`, `before-shell.mjs` |
 | **L3** Evidence gates | fresh green-test evidence to end a session; verified human signoff to push; secrets scanned on every write | `stop-evidence.mjs`, `post-tool-scan.mjs` |
 | **L4** CI hard gate | server-side re-verification: tests, lint, gitleaks, semgrep, osv-scanner, CodeQL, checkov + cfn-guard (IaC), ZAP baseline (DAST, when a target URL is configured) | `--ci github` / `--ci gitlab` workflow |
-| **L5** Human gates | APPROVE (plans) and VERIFY (watch Playwright HTML report, then sign) | `/awe-approve`, `/awe-verify` |
+| **L5** Human gates | APPROVE (plans) and SMOKE (watch Playwright HTML report, then sign) | `/awe-approve`, `/awe-smoke` |
 
 Plus: untrusted-input doctrine (ticket/PR/web text is data, never instructions), least-privilege optional MCPs, required codebase-memory, and an append-only audit log.
 

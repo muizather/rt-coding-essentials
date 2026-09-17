@@ -1,8 +1,8 @@
 {
   "name": "rt-coding-essentials",
   "displayName": "RT Coding Essentials",
-  "description": "Phase-gated multi-agent pipeline (intake → architect → approve → code → review → Playwright verify → ship) for frontend and backend, with hooks and a codebase graph.",
-  "version": "0.4.1",
+  "description": "Phase-gated multi-agent pipeline (intake → architect → approve → code → review → Playwright smoke → ship) for frontend, backend, and fullstack, with hooks and a codebase graph.",
+  "version": "0.5.0",
   "author": {
     "name": "Muiz Athar"
   },

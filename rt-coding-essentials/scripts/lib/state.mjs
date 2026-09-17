@@ -9,17 +9,42 @@
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 export const STATE_DIR = path.join('.cursor', 'state');
 export const STATE_FILE = 'awe-state.json';
 export const EVIDENCE_FILE = 'awe-evidence.json';
+export const SMOKE_EVIDENCE_FILE = 'awe-smoke-evidence.json';
+/** @deprecated Use SMOKE_EVIDENCE_FILE. Kept so old tickets still satisfy the stop hook. */
 export const VERIFY_EVIDENCE_FILE = 'awe-verify-evidence.json';
 export const SIGNOFF_FILE = 'awe-signoff.json';
 export const AUDIT_FILE = 'audit.log';
 export const DISCOVERED_FILE = 'awe-discovered.json';
 
-export const PHASES = ['intake', 'architect', 'approve', 'code', 'review', 'verify', 'ship', 'done'];
+export const CODING_ROLES = ['backend', 'frontend', 'fullstack'];
+export const ROLE_AGENT = {
+  backend: 'awe-backend-dev',
+  frontend: 'awe-frontend-dev',
+  fullstack: 'awe-fullstack-dev',
+};
+
+export const PHASES = ['intake', 'architect', 'approve', 'code', 'review', 'smoke', 'ship', 'done'];
+/** Legacy state files may still say `verify`. Treat that as `smoke`. */
+export function isSmokePhase(phase) {
+  return phase === 'smoke' || phase === 'verify';
+}
+
+export function smokeIterationOf(ticket) {
+  if (!ticket || typeof ticket !== 'object') return 0;
+  const n = ticket.smokeIteration ?? ticket.verifyIteration;
+  return Number.isInteger(n) ? n : 0;
+}
+
+/** Playwright evidence: new name first, then the pre-0.5.0 filename. */
+export function loadSmokeEvidence(dir = projectDir()) {
+  return loadStateJson(SMOKE_EVIDENCE_FILE, dir) || loadStateJson(VERIFY_EVIDENCE_FILE, dir);
+}
 
 /** Absolute path of the project the agent is working in. */
 export function projectDir() {
@@ -84,7 +109,7 @@ export const PLAN_ONLY_PHASES = new Set(['intake', 'architect', 'approve']);
 /** Phases that write application source / review fixes. */
 export const IMPLEMENT_PHASES = new Set(['code', 'review']);
 /** Phases that occupy an `awe/<ticket>-*` branch (worktree only if another ticket is here). */
-export const BRANCH_HELD_PHASES = new Set(['code', 'review', 'verify', 'ship']);
+export const BRANCH_HELD_PHASES = new Set(['code', 'review', 'smoke', 'verify', 'ship']);
 
 /**
  * All in-flight tickets. Prefers `state.tickets`; synthesizes from legacy
@@ -137,12 +162,12 @@ export function needsWorktree(state, ticketId) {
 }
 
 export function parseAweBranch(branch) {
-  const m = String(branch || '').match(/^awe\/(.+)-(backend|frontend)$/);
+  const m = String(branch || '').match(/^awe\/(.+)-(backend|frontend|fullstack)$/);
   return m ? { ticket: m[1], role: m[2] } : null;
 }
 
 export function parseAweWorktreeRel(rel) {
-  const m = String(rel || '').match(/^\.worktrees\/(.+)-(backend|frontend)(?:\/|$)/);
+  const m = String(rel || '').match(/^\.worktrees\/(.+)-(backend|frontend|fullstack)(?:\/|$)/);
   return m ? { ticket: m[1], role: m[2] } : null;
 }
 
@@ -255,7 +280,7 @@ function startFromRoot(root) {
 }
 
 /**
- * How this workspace boots locally. Used by VERIFY (Playwright against localhost).
+ * How this workspace boots locally. Used by the smoke tester (Playwright against localhost).
  * Never invents URLs or env values.
  */
 export function discoverLocalRun(dir = projectDir()) {
@@ -272,7 +297,7 @@ export function discoverLocalRun(dir = projectDir()) {
   });
   const notes = [];
   if (!root.start && !services.some((s) => s.start)) {
-    notes.push('no start command discovered — ask the human once before VERIFY');
+    notes.push('no start command discovered — ask the human once before smoke');
   }
   return {
     start: root.start,
@@ -309,32 +334,193 @@ export function discoverGitRepos(dir = projectDir()) {
   return out;
 }
 
-function detectFeBe(root) {
+const FE_DEPS = ['react', 'vue', 'next', 'svelte', 'nuxt', '@angular/core', '@remix-run/react', 'gatsby', 'solid-js'];
+const BE_DEPS = ['@nestjs/core', 'express', 'fastify', 'koa', '@hapi/hapi'];
+
+function pkgDeps(root) {
   const pkg = readJsonFile(path.join(root, 'package.json'));
-  const deps = { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) };
-  const feDep = ['react', 'vue', 'next', 'svelte', 'nuxt', '@angular/core'].some((d) => deps[d]);
-  const frontendPath = ['src/components', 'src/app', 'app/page.tsx', 'app/page.jsx', 'frontend', 'apps/web', 'web', 'client']
-    .some((p) => existsRel(root, p));
-  const hasFe = feDep || frontendPath;
-  const hasBe = ['go.mod', 'pyproject.toml', 'Cargo.toml', 'pom.xml', 'build.gradle', 'backend', 'server', 'api', 'src/api', 'apps/api']
-    .some((p) => existsRel(root, p));
-  return { hasFe, hasBe };
+  return { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) };
 }
 
-/** backend and/or frontend from tree + package.json; default backend-only. Never child-repo folder names. */
-export function discoverRoles(dir = projectDir()) {
-  const family = discoverGitRepos(dir);
-  const roots = family.length > 0 ? family.map((r) => r.path) : [dir];
-  let hasFe = false;
-  let hasBe = false;
-  for (const root of roots) {
-    const hit = detectFeBe(root);
-    hasFe = hasFe || hit.hasFe;
-    hasBe = hasBe || hit.hasBe;
+function composerReq(root) {
+  const c = readJsonFile(path.join(root, 'composer.json'));
+  return { ...(c?.require || {}), ...(c?.['require-dev'] || {}) };
+}
+
+/**
+ * Bundled CMS storefront (Magento themes, WP templates, …) is NOT a dedicated
+ * frontend role. ipromo-style Magento + Next.js is a split product.
+ */
+export function detectCmsPlatform(root) {
+  const req = Object.keys(composerReq(root));
+  if (req.some((k) => k.startsWith('magento/') || k === 'openmage/magento-lts')) return 'magento';
+  if (
+    existsRel(root, 'bin/magento')
+    && (existsRel(root, 'app/etc/config.php') || existsRel(root, 'app/etc/env.php') || existsRel(root, 'app/code') || existsRel(root, 'app/design'))
+  ) {
+    return 'magento';
   }
-  if (hasFe && hasBe) return ['backend', 'frontend'];
-  if (hasFe) return ['frontend'];
-  return ['backend'];
+  if (req.some((k) => k === 'drupal/core' || k.startsWith('drupal/core-'))) return 'drupal';
+  if (existsRel(root, 'wp-includes') || existsRel(root, 'wp-config.php')) return 'wordpress';
+  if (req.some((k) => k.includes('prestashop'))) return 'prestashop';
+  return null;
+}
+
+/** First-party SPA/app. Magento `app/design/frontend` does not count. */
+export function hasFirstPartyFrontend(root) {
+  const deps = pkgDeps(root);
+  if (FE_DEPS.some((d) => deps[d])) return true;
+  const spaMarkers = [
+    'app/page.tsx', 'app/page.jsx', 'next.config.js', 'next.config.mjs', 'next.config.ts',
+    'nuxt.config.ts', 'nuxt.config.js', 'src/app', 'src/components', 'apps/web',
+  ];
+  if (spaMarkers.some((p) => existsRel(root, p))) {
+    if (detectCmsPlatform(root) && !FE_DEPS.some((d) => deps[d]) && !existsRel(root, 'app/page.tsx') && !existsRel(root, 'app/page.jsx')) {
+      return false;
+    }
+    return true;
+  }
+  if (detectCmsPlatform(root)) return false;
+  return ['frontend', 'client', 'web'].some((p) => existsRel(root, p));
+}
+
+export function hasFirstPartyBackend(root) {
+  if (detectCmsPlatform(root)) return true;
+  const deps = pkgDeps(root);
+  if (BE_DEPS.some((d) => deps[d])) return true;
+  return ['go.mod', 'pyproject.toml', 'Cargo.toml', 'pom.xml', 'build.gradle', 'backend', 'server', 'api', 'src/api', 'apps/api', 'artisan']
+    .some((p) => existsRel(root, p));
+}
+
+export function classifyRepo(root) {
+  const cms = detectCmsPlatform(root);
+  const fe = hasFirstPartyFrontend(root);
+  const be = hasFirstPartyBackend(root);
+  let kind = 'unknown';
+  if (cms && !fe) kind = 'cms';
+  else if (fe && be) kind = 'mixed';
+  else if (fe) kind = 'dedicated_frontend';
+  else if (be || cms) kind = 'dedicated_backend';
+  return { path: root, name: path.basename(root), kind, cms, firstPartyFe: fe, firstPartyBe: be };
+}
+
+/** Sibling git repos next to this one (`../other/.git`). Catches Magento opened alone beside Next.js. */
+export function discoverSiblingGitRepos(dir = projectDir()) {
+  if (!existsRel(dir, '.git')) return [];
+  const parent = path.dirname(dir);
+  if (!parent || parent === dir) return [];
+  const parentAbs = path.resolve(parent);
+  if (parentAbs === path.resolve(os.tmpdir())) return [];
+  if (['tmp', 'temp', 'tmpdir'].includes(path.basename(parentAbs).toLowerCase())) return [];
+  let ents = [];
+  try {
+    ents = fs.readdirSync(parent, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const self = path.resolve(dir);
+  const gitKids = [];
+  for (const ent of ents) {
+    if (!ent.isDirectory() || ent.name.startsWith('.')) continue;
+    const child = path.join(parent, ent.name);
+    if (fs.existsSync(path.join(child, '.git'))) {
+      gitKids.push({ name: ent.name, path: child, relative: path.join('..', ent.name) });
+    }
+  }
+  // Product families are small (ipromo: magento + nestjs). A dump dir (/tmp, ~/src) is not a family.
+  if (gitKids.length > 8) return [];
+  return gitKids.filter((k) => path.resolve(k.path) !== self);
+}
+
+function uniqueRepos(list) {
+  const seen = new Set();
+  const out = [];
+  for (const r of list) {
+    const k = path.resolve(r.path);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ ...r, path: k });
+  }
+  return out;
+}
+
+/**
+ * backend, frontend, and/or fullstack.
+ * Never child-repo folder names. CMS bundled themes are not a frontend role.
+ * A sibling/family SPA next to Magento (ipromo) → split backend + frontend, not fullstack.
+ */
+export function discoverRoles(dir = projectDir()) {
+  return discoverRolesMeta(dir).roles;
+}
+
+export function discoverRolesMeta(dir = projectDir()) {
+  const family = discoverGitRepos(dir);
+  const wsRoots = family.length > 0
+    ? family
+    : [{ name: path.basename(dir), path: dir, relative: '.' }];
+  const siblings = discoverSiblingGitRepos(dir);
+  const all = uniqueRepos([...wsRoots, ...siblings]);
+  const classes = all.map((r) => ({ ...r, ...classifyRepo(r.path) }));
+  const wsSet = new Set(wsRoots.map((r) => path.resolve(r.path)));
+  const wsClasses = classes.filter((c) => wsSet.has(path.resolve(c.path)));
+
+  const backends = classes.filter((c) => c.kind === 'cms' || c.kind === 'dedicated_backend');
+  const frontends = classes.filter((c) => c.kind === 'dedicated_frontend' || (c.kind === 'mixed' && c.firstPartyFe));
+  const isSplit = backends.some((b) => frontends.some((f) => path.resolve(b.path) !== path.resolve(f.path)));
+
+  let roles;
+  let reason;
+  if (isSplit) {
+    const wsIsFamily = wsRoots.length >= 2;
+    const wsHasFe = wsClasses.some((c) => c.kind === 'dedicated_frontend' || (c.kind === 'mixed' && c.firstPartyFe));
+    const wsHasCmsOrApi = wsClasses.some((c) => c.kind === 'cms' || c.kind === 'dedicated_backend');
+    if (wsIsFamily) {
+      roles = ['backend', 'frontend'];
+      reason = 'split product: CMS/API repo + first-party SPA in the git family';
+    } else if (wsHasCmsOrApi && !wsHasFe) {
+      roles = ['backend'];
+      reason = 'this repo is the CMS/API; a sibling SPA is the product frontend';
+    } else if (wsHasFe) {
+      roles = ['frontend'];
+      reason = 'this repo is the product SPA (or SPA+BFF); a sibling CMS/API is the backend';
+    } else {
+      roles = ['backend'];
+      reason = 'split product; this workspace maps to backend';
+    }
+  } else {
+    const only = wsClasses.length === 1 ? wsClasses[0] : null;
+    if (only?.kind === 'mixed' || only?.kind === 'cms') {
+      roles = ['fullstack'];
+      reason = only.kind === 'cms'
+        ? 'single CMS repo with no sibling SPA — product UI is this storefront (override with awe.config.json if headless)'
+        : 'same repo owns first-party UI and server; no sibling SPA';
+    } else if (only?.kind === 'dedicated_frontend') {
+      roles = ['frontend'];
+      reason = 'first-party SPA only';
+    } else if (wsClasses.some((c) => c.firstPartyFe) && wsClasses.some((c) => c.firstPartyBe || c.kind === 'cms' || c.kind === 'dedicated_backend')) {
+      roles = ['backend', 'frontend'];
+      reason = 'family has first-party UI and server in different children';
+    } else if (wsClasses.some((c) => c.firstPartyFe)) {
+      roles = ['frontend'];
+      reason = 'first-party SPA';
+    } else {
+      roles = ['backend'];
+      reason = 'default backend (no first-party SPA detected)';
+    }
+  }
+
+  return {
+    roles,
+    reason,
+    classified: classes.map((c) => ({
+      name: c.name,
+      kind: c.kind,
+      cms: c.cms,
+      firstPartyFe: c.firstPartyFe,
+      firstPartyBe: c.firstPartyBe,
+      sibling: !wsSet.has(path.resolve(c.path)),
+    })),
+  };
 }
 
 /** Unchecked GitHub-style boxes (`- [ ]`). Checked (`- [x]`) do not count. */
@@ -377,10 +563,15 @@ export function sourceWriteAllowedInCodePhase(dir, state, rel, ticketId) {
   const ticket = ticketId || state?.ticket;
   const entry = getTicketEntry(state, ticket);
   const roles = entry?.roles || state?.roles || {};
+  if (roles.fullstack?.planStatus === 'approved') {
+    return implementationArtifactsReady(dir, ticket, 'fullstack');
+  }
   const matched = inferSourceWriteRole(rel);
   let role = matched;
   if (!role || roles[role]?.planStatus !== 'approved') {
-    role = roles.backend?.planStatus === 'approved' ? 'backend' : 'frontend';
+    role = roles.backend?.planStatus === 'approved'
+      ? 'backend'
+      : (roles.frontend?.planStatus === 'approved' ? 'frontend' : 'fullstack');
   }
   return implementationArtifactsReady(dir, ticket, role);
 }
@@ -427,7 +618,10 @@ export function ensureDiscoveredConfig(dir = projectDir()) {
     let dirty = false;
     if (!Array.isArray(existing.gitRepos)) {
       existing.gitRepos = discoverGitRepos(dir);
-      existing.roles = discoverRoles(dir);
+      const meta = discoverRolesMeta(dir);
+      existing.roles = meta.roles;
+      existing.rolesReason = meta.reason;
+      existing.rolesClassified = meta.classified;
       dirty = true;
     }
     if (!existing.local || typeof existing.local !== 'object') {
@@ -437,10 +631,13 @@ export function ensureDiscoveredConfig(dir = projectDir()) {
     return dirty ? saveStateJson(DISCOVERED_FILE, existing, dir) : existing;
   }
   const gitRepos = discoverGitRepos(dir);
+  const rolesMeta = discoverRolesMeta(dir);
   const cfg = {
     projectName: path.basename(dir),
     baseBranch: discoverBaseBranch(dir),
-    roles: discoverRoles(dir),
+    roles: rolesMeta.roles,
+    rolesReason: rolesMeta.reason,
+    rolesClassified: rolesMeta.classified,
     gitRepos,
     commands: { test: discoverTestCommand(dir), lint: discoverLintCommand(dir) },
     local: discoverLocalRun(dir),

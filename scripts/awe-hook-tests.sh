@@ -163,24 +163,27 @@ if grep -q 'name: ddd-domain-model' "$ROOT/rt-coding-essentials/skills/ddd-domai
   && grep -q 'name: ddd-use-cases' "$ROOT/rt-coding-essentials/skills/ddd-use-cases/SKILL.md" \
   && grep -q 'name: awe-backend-dev' "$ROOT/rt-coding-essentials/agents/awe-backend-dev.md" \
   && grep -q 'name: awe-frontend-dev' "$ROOT/rt-coding-essentials/agents/awe-frontend-dev.md" \
-  && [[ ! -f "$ROOT/rt-coding-essentials/agents/awe-repo-dev.md" ]]; then
-  pass "plugin ships DDD skills + FE/BE agents (no repo-dev)"
+  && grep -q 'name: awe-fullstack-dev' "$ROOT/rt-coding-essentials/agents/awe-fullstack-dev.md" \
+  && grep -q 'name: awe-smoke-tester' "$ROOT/rt-coding-essentials/agents/awe-smoke-tester.md" \
+  && [[ ! -f "$ROOT/rt-coding-essentials/agents/awe-repo-dev.md" ]] \
+  && [[ ! -f "$ROOT/rt-coding-essentials/agents/awe-verifier.md" ]]; then
+  pass "plugin ships DDD skills + FE/BE/fullstack + smoke-tester (no repo-dev/verifier)"
 else
-  fail "plugin missing DDD/FE/BE or still has repo-dev"
+  fail "plugin missing DDD/FE/BE/fullstack/smoke or still has repo-dev/verifier"
 fi
 if grep -q 'No file lists' "$ROOT/rt-coding-essentials/agents/awe-architect.md"; then
   pass "architect forbids file lists"
 else
   fail "architect still lists files"
 fi
-if grep -q 'Playwright is \*\*mandatory\*\*' "$ROOT/rt-coding-essentials/skills/references/verify-e2e.md" \
-  && grep -q 'playwrightPassed' "$ROOT/rt-coding-essentials/agents/awe-verifier.md" \
-  && grep -q 'run-verify.sh' "$ROOT/rt-coding-essentials/skills/references/verify-e2e.md" \
-  && grep -q 'show-report' "$ROOT/rt-coding-essentials/skills/references/verify-e2e.md" \
-  && grep -q 'HTML reporter required' "$ROOT/rt-coding-essentials/skills/references/verify-e2e.md"; then
-  pass "verifier requires Playwright Gherkin on localhost"
+if grep -q 'Playwright is \*\*mandatory\*\*' "$ROOT/rt-coding-essentials/skills/references/smoke-e2e.md" \
+  && grep -q 'playwrightPassed' "$ROOT/rt-coding-essentials/agents/awe-smoke-tester.md" \
+  && grep -q 'run-smoke.sh' "$ROOT/rt-coding-essentials/skills/references/smoke-e2e.md" \
+  && grep -q 'show-report' "$ROOT/rt-coding-essentials/skills/references/smoke-e2e.md" \
+  && grep -q 'HTML reporter required' "$ROOT/rt-coding-essentials/skills/references/smoke-e2e.md"; then
+  pass "smoke tester requires Playwright Gherkin on localhost"
 else
-  fail "verifier missing mandatory Playwright"
+  fail "smoke tester missing mandatory Playwright"
 fi
 if grep -q 'ticket-updates.md' "$ROOT/rt-coding-essentials/skills/references/mcp-report.md" \
   && grep -q 'round-<N>-response.md' "$ROOT/rt-coding-essentials/skills/awe-review/SKILL.md"; then
@@ -238,6 +241,56 @@ process.stdout.write(repos + '|' + roles);
 ")"
 if [[ "$FAM2_OUT" == api,web\|backend,frontend ]]; then pass "discover nested FE+BE roles ($FAM2_OUT)"; else fail "nested FE+BE: $FAM2_OUT"; fi
 rm -rf "$FAM2"
+
+echo "== Discover Magento + Next (ipromo split, not fullstack) =="
+IPR="$(mktemp -d /tmp/awe-ipromo.XXXXXX)"
+mkdir -p "$IPR/magento/app/design/frontend" "$IPR/magento/app/etc" "$IPR/magento/bin" "$IPR/nestjs"
+git -C "$IPR/magento" init -q
+git -C "$IPR/nestjs" init -q
+printf '%s\n' '{"name":"magento/project-community-edition","require":{"magento/product-community-edition":"2.4.7"}}' > "$IPR/magento/composer.json"
+touch "$IPR/magento/bin/magento" "$IPR/magento/app/etc/config.php"
+printf '%s\n' '{"dependencies":{"next":"15.0.0","react":"19.0.0"}}' > "$IPR/nestjs/package.json"
+IPR_FAM="$(env CURSOR_PROJECT_DIR="$IPR" node --input-type=module -e "
+import { discoverRoles, discoverRolesMeta } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+const d = process.env.CURSOR_PROJECT_DIR;
+process.stdout.write(discoverRoles(d).slice().sort().join(',') + '|' + discoverRolesMeta(d).reason);
+")"
+IPR_MAG="$(env CURSOR_PROJECT_DIR="$IPR/magento" node --input-type=module -e "
+import { discoverRoles } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+process.stdout.write(discoverRoles(process.env.CURSOR_PROJECT_DIR).join(','));
+")"
+IPR_NEXT="$(env CURSOR_PROJECT_DIR="$IPR/nestjs" node --input-type=module -e "
+import { discoverRoles } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+process.stdout.write(discoverRoles(process.env.CURSOR_PROJECT_DIR).join(','));
+")"
+if [[ "$IPR_FAM" == backend,frontend\|* ]]; then pass "ipromo family is split FE+BE ($IPR_FAM)"; else fail "ipromo family: $IPR_FAM"; fi
+if [[ "$IPR_MAG" == backend ]]; then pass "magento beside Next is backend-only ($IPR_MAG)"; else fail "magento roles: $IPR_MAG"; fi
+if [[ "$IPR_NEXT" == frontend ]]; then pass "Next beside Magento is frontend-only ($IPR_NEXT)"; else fail "nestjs roles: $IPR_NEXT"; fi
+rm -rf "$IPR"
+
+echo "== Discover Magento alone (storefront = fullstack) =="
+MAG="$(mktemp -d /tmp/awe-mag.XXXXXX)"
+mkdir -p "$MAG/app/design/frontend" "$MAG/app/etc" "$MAG/bin"
+git -C "$MAG" init -q
+printf '%s\n' '{"name":"magento/project-community-edition","require":{"magento/product-community-edition":"2.4.7"}}' > "$MAG/composer.json"
+touch "$MAG/bin/magento" "$MAG/app/etc/config.php"
+MAG_OUT="$(env CURSOR_PROJECT_DIR="$MAG" node --input-type=module -e "
+import { discoverRoles } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+process.stdout.write(discoverRoles(process.env.CURSOR_PROJECT_DIR).join(','));
+")"
+if [[ "$MAG_OUT" == fullstack ]]; then pass "solo Magento is fullstack ($MAG_OUT)"; else fail "solo Magento: $MAG_OUT"; fi
+rm -rf "$MAG"
+
+echo "== Discover Next+Nest same repo (fullstack) =="
+FS="$(mktemp -d /tmp/awe-fs.XXXXXX)"
+git -C "$FS" init -q
+printf '%s\n' '{"dependencies":{"next":"15.0.0","@nestjs/core":"11.0.0"}}' > "$FS/package.json"
+FS_OUT="$(env CURSOR_PROJECT_DIR="$FS" node --input-type=module -e "
+import { discoverRoles } from '$ROOT/rt-coding-essentials/scripts/lib/state.mjs';
+process.stdout.write(discoverRoles(process.env.CURSOR_PROJECT_DIR).join(','));
+")"
+if [[ "$FS_OUT" == fullstack ]]; then pass "Next+Nest same repo is fullstack ($FS_OUT)"; else fail "same-repo mixed: $FS_OUT"; fi
+rm -rf "$FS"
 
 echo "== Discover local run =="
 LOC="$(mktemp -d /tmp/awe-loc.XXXXXX)"
@@ -313,11 +366,13 @@ expect_deny "code phase blocks frontend src while FE questions open" "$out"
 write_impl frontend
 out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"src/app/Page.tsx","content":"x"}}')"
 expect_allow "code phase allows frontend src when FE questions closed" "$out"
-write_state true verify approved approved
+write_state true smoke approved approved
 out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"src/foo.ts","content":"x"}}')"
-expect_deny "verify phase blocks src write" "$out"
+expect_deny "smoke phase blocks src write" "$out"
 out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"plans/PROJ-1/e2e/playwright.config.ts","content":"export default {}"}}')"
-expect_allow "verify phase allows Playwright specs under plans/" "$out"
+expect_allow "smoke phase allows Playwright specs under plans/" "$out"
+out="$(run_hook pre-tool-gate.mjs '{"tool_input":{"file_path":"docs/awe/project-map.md","content":"# map\n"}}')"
+expect_allow "smoke phase allows docs/awe writes" "$out"
 
 echo "== Multi-ticket plans + dependsOn =="
 mkdir -p "$FIX/.cursor/state"
@@ -580,33 +635,38 @@ out="$(run_hook stop-evidence.mjs '{}')"
 expect_followup "stop-evidence uses discovered test command" "$out" "pytest -q"
 cp "$ROOT/template/awe.config.json" "$FIX/awe.config.json"
 
-write_state true verify approved approved
-rm -f "$FIX/.cursor/state/awe-verify-evidence.json"
+write_state true smoke approved approved
+rm -f "$FIX/.cursor/state/awe-smoke-evidence.json" "$FIX/.cursor/state/awe-verify-evidence.json"
 out="$(run_hook stop-evidence.mjs '{}')"
-expect_followup "stop in verify without Playwright evidence" "$out" "Playwright"
+expect_followup "stop in smoke without Playwright evidence" "$out" "Playwright"
+printf '%s\n' '{"playwrightPassed":true,"command":"npx playwright test","at":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' > "$FIX/.cursor/state/awe-smoke-evidence.json"
+out="$(run_hook stop-evidence.mjs '{}')"
+expect_empty "stop in smoke with fresh Playwright evidence" "$out"
+# legacy evidence filename still satisfies the stop hook
+rm -f "$FIX/.cursor/state/awe-smoke-evidence.json"
 printf '%s\n' '{"playwrightPassed":true,"command":"npx playwright test","at":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' > "$FIX/.cursor/state/awe-verify-evidence.json"
 out="$(run_hook stop-evidence.mjs '{}')"
-expect_empty "stop in verify with fresh Playwright evidence" "$out"
+expect_empty "stop in smoke accepts legacy awe-verify-evidence.json" "$out"
 mkdir -p "$FIX/.cursor/state"
 cat > "$FIX/.cursor/state/awe-state.json" <<EOF
 {
   "active": true,
   "ticket": "PROJ-1",
-  "phase": "verify",
+  "phase": "smoke",
   "roles": {
     "backend": { "planStatus": "approved", "iteration": 0, "verified": true }
   },
   "tickets": {
     "PROJ-1": {
-      "phase": "verify",
+      "phase": "smoke",
       "roles": { "backend": { "planStatus": "approved", "iteration": 0, "verified": true } },
-      "verifyIteration": 3
+      "smokeIteration": 3
     }
   }
 }
 EOF
 out="$(run_hook stop-evidence.mjs '{}')"
-expect_followup "stop when verify budget exhausted" "$out" "VERIFY BUDGET EXHAUSTED"
+expect_followup "stop when smoke budget exhausted" "$out" "SMOKE BUDGET EXHAUSTED"
 
 echo "== post-tool-scan =="
 printf 'const k = "AKIAIOSFODNN7EXAMPLE";\n' > "$FIX/src/leak.ts"
@@ -641,11 +701,41 @@ write_state true architect approved approved
 out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-architect"}')"
 expect_allow "architect allowed in architect" "$out"
 write_state true code approved approved
-out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-verifier"}')"
-expect_deny "verifier denied in code" "$out"
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-smoke-tester"}')"
+expect_deny "smoke tester denied in code" "$out"
+write_state true smoke approved approved
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-smoke-tester"}')"
+expect_allow "smoke tester allowed in smoke" "$out"
 write_state true verify approved approved
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-smoke-tester"}')"
+expect_allow "smoke tester allowed in legacy verify phase" "$out"
+write_state true code approved approved
 out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-verifier"}')"
-expect_allow "verifier allowed in verify" "$out"
+expect_deny "old awe-verifier name is denied" "$out"
+write_state true code approved approved
+# fullstack needs fullstack plan approved — write_state only sets be/fe
+mkdir -p "$FIX/.cursor/state"
+cat > "$FIX/.cursor/state/awe-state.json" <<EOF
+{
+  "active": true,
+  "ticket": "PROJ-1",
+  "phase": "code",
+  "roles": {
+    "fullstack": { "planStatus": "approved", "iteration": 0, "verified": false }
+  },
+  "tickets": {
+    "PROJ-1": {
+      "phase": "code",
+      "roles": { "fullstack": { "planStatus": "approved", "iteration": 0, "verified": false } },
+      "dependsOn": []
+    }
+  }
+}
+EOF
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-fullstack-dev"}')"
+expect_allow "fullstack-dev allowed in code+approved" "$out"
+out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-backend-dev"}')"
+expect_deny "backend-dev denied when only fullstack is approved" "$out"
 write_state true review approved approved
 out="$(run_hook subagent-gate.mjs '{"subagent_name":"awe-reviewer"}')"
 expect_allow "reviewer allowed in review" "$out"

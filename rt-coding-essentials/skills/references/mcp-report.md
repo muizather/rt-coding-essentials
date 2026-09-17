@@ -35,8 +35,8 @@ Keep it bulleted. No plan-file dumps. No secrets, tokens, or `.env` values.
 | Review `needs-fix` | yes | Round N, Required count, link to `reviews/round-N.md` | Same bullets | PR/MR comment if a PR already exists |
 | Coder finished a fix round | yes | Optional | `round-N-response.md` bullets (fixed / rebutted / deferred) | Same |
 | Role `verified` | yes | Role + round | Same | Same |
-| VERIFY green (awaiting signoff) | yes | HTML report path + `verification.md` | Same | Same |
-| VERIFY / review escalation | yes | Path to `ESCALATION.md` | Same | Same |
+| SMOKE green (awaiting signoff) | yes | HTML report path + `smoke.md` | Same | Same |
+| SMOKE / review escalation | yes | Path to `ESCALATION.md` | Same | Same |
 | Ship opened a PR/MR | yes | URL | PR/MR URL + verification summary | The create-PR/MR call **is** the report |
 | Knowledge ADR written | skip | Skip unless the human asked | Skip | Skip |
 

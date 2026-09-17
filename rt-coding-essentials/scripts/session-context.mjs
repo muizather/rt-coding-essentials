@@ -28,7 +28,7 @@ await runHook(async (_input) => {
     `Discovered baseBranch=${cfg.baseBranch}, test=\`${cfg.commands?.test || 'npm test'}\`, ` +
     `roles=${(cfg.roles || ['backend']).join(',')}.`;
   const memory =
-    `REQUIRED: follow code-graph.md. Architect writes high-level spec+gherkin (no files). Coders write implementation plans + unit tests and must search current advisories before adding packages. VERIFY runs that gherkin with Playwright on localhost (video/trace + HTML report) — never skip to human steps only.`;
+    `REQUIRED: follow code-graph.md. Architect writes high-level spec+gherkin (no files). Coders write implementation plans + unit tests and must search current advisories before adding packages. SMOKE runs that gherkin with Playwright on localhost (video/trace + HTML report) — never skip to human steps only.`;
   const optionalMcp =
     `Optional: if Slack or a ticket MCP (Redmine/Jira/GitHub/GitLab) can comment, post short status bullets at phase boundaries; always write plans/<ticket>/ticket-updates.md. If those tools are missing, skip the MCP post.`;
 
@@ -62,7 +62,7 @@ await runHook(async (_input) => {
       `${discovered} ${memory} ` +
       `New /awe-run intake is never blocked by another ticket. Record dependsOn when work shares a surface; ` +
       `implementation is blocked until those tickets are phase=done. ` +
-      `Worktrees only when two+ plans occupy code|review|verify|ship at once. ` +
-      `/awe-run may chain phases; APPROVE and VERIFY still need an explicit human yes.`,
+      `Worktrees only when two+ plans occupy code|review|smoke|ship at once. ` +
+      `/awe-run may chain phases; APPROVE and SMOKE still need an explicit human yes.`,
   });
 });

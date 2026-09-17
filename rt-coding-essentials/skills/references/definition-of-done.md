@@ -25,7 +25,7 @@ Apply this to every change before declaring it done.
 
 ### Correctness
 - [ ] All acceptance criteria for the task are met
-- [ ] Code runs and behaves as intended, verified at runtime (VERIFY: Playwright Gherkin on localhost with HTML report + video/trace), not just compiled or typechecked
+- [ ] Code runs and behaves as intended, smoked at runtime (SMOKE: Playwright Gherkin on localhost with HTML report + video/trace), not just compiled or typechecked
 - [ ] New behavior is covered by tests that fail without the change and pass with it
 - [ ] Existing tests still pass; no regressions introduced
 - [ ] Edge cases and error paths are handled, not just the happy path
@@ -66,8 +66,8 @@ Tailor the list to the project once, then reuse it unchanged. A Definition of Do
 ## Red Flags
 
 - "It's done, I just haven't run it yet": unverified work is not done.
-- "Tests pass" used as a synonym for done while docs, regressions, or runtime verification are skipped.
-- VERIFY reduced to a markdown checklist with no Playwright run on localhost.
+- "Tests pass" used as a synonym for done while docs, regressions, or runtime smoke are skipped.
+- SMOKE reduced to a markdown checklist with no Playwright run on localhost.
 - A different bar applied depending on deadline pressure.
 - Acceptance criteria treated as the whole bar, with no standing quality floor.
 - "Done" declared before human review on changes that need it.

@@ -9,18 +9,21 @@ The following AWE components adapt content from that project (each ported file
 also carries a one-line attribution header):
 
   Skills (template/.cursor/skills/):
-  - awe-verify/SKILL.md            (debugging-and-error-recovery, test-driven-development)
+  - awe-smoke/SKILL.md             (debugging-and-error-recovery, test-driven-development, test-engineer)
   - awe-regression/SKILL.md        (debugging-and-error-recovery, test-driven-development)
   - awe-code/SKILL.md              (test-driven-development)
   - awe-review/SKILL.md            (code-review-and-quality, doubt-driven-development, code-simplification)
   - awe-approve/SKILL.md           (interview-me — explicit-yes / hedged-approval discipline)
   - awe-intake/SKILL.md            (interview-me)
-  - awe-architect/SKILL.md         (planning-and-task-breakdown)
+  - awe-architect/SKILL.md         (planning-and-task-breakdown, context-engineering)
   - awe-ship/SKILL.md              (shipping-and-launch, documentation-and-adrs)
+  - awe-remember/SKILL.md          (documentation-and-adrs, context-engineering)
 
   Agents (template/.cursor/agents/):
   - awe-reviewer.md                (code-review-and-quality, doubt-driven-development)
   - awe-security-reviewer.md       (security-and-hardening)
+  - awe-smoke-tester.md            (test-engineer)
+  - awe-fullstack-dev.md           (frontend-ui-engineering, api-and-interface-design, incremental-implementation)
 
   Hooks (template/.cursor/hooks/):
   - constraints-guard.mjs          (constraint-driven-development — the "guard the bar" checks)
@@ -33,6 +36,8 @@ also carries a one-line attribution header):
   - security-review-checklist.md   (security-and-hardening)
   - ship-decision.md               (shipping-and-launch, documentation-and-adrs)
   - plan-task-template.md          (planning-and-task-breakdown)
+  - project-briefing.md            (context-engineering, documentation-and-adrs)
+  - smoke-e2e.md                   (test-engineer, test-driven-development)
 
   Other:
   - template/CONSTRAINTS.md        (constraint-driven-development)

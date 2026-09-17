@@ -95,8 +95,8 @@ await runHook(async (input) => {
     audit(dir, 'beforeShellExecution', 'ask', `ship push missing ${missing}`, { command, branch, ticket: ticketId });
     return respond({
       permission: 'ask',
-      user_message: `AWE ship gate: this push is missing ${missing}. Approve only if you have personally verified the change.`,
-      agent_message: `Ship gate not satisfied: missing ${missing}. Do not retry the push until the human completes verification (/awe-verify).`,
+      user_message: `AWE ship gate: this push is missing ${missing}. Approve only if you have personally signed the smoke report.`,
+      agent_message: `Ship gate not satisfied: missing ${missing}. Do not retry the push until the human signs the smoke report (/awe-smoke).`,
     });
   }
 

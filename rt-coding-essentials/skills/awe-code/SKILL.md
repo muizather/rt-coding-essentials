@@ -1,23 +1,23 @@
 ---
 name: awe-code
-description: Start coding for one role — branch awe/<ticket>-<role>, optional worktree only when another plan is already implementing, writes handoff.md, spawns backend-dev or frontend-dev. Usage: /awe-code <role>
+description: Start coding for one role — branch awe/<ticket>-<role>, optional worktree only when another plan is already implementing, writes handoff.md, spawns backend-dev, frontend-dev, or fullstack-dev. Usage: /awe-code <role>
 ---
 
 # awe-code
 
-**Purpose.** Launch implementation for **backend** or **frontend** for **this ticket**. Phase stays `code` on this ticket only. Other in-flight plans are untouched.
+**Purpose.** Launch implementation for **backend**, **frontend**, or **fullstack** for **this ticket**. Phase stays `code` on this ticket only. Other in-flight plans are untouched.
 
-There is no third coder. If the argument is not `backend` or `frontend`, STOP and tell the human.
+If the argument is not `backend`, `frontend`, or `fullstack`, STOP and tell the human. Do not spawn two of FE+BE in a repo whose discovered role is `fullstack`.
 
 ## Procedure
 
-1. **Gate check.** State `active: true`. This ticket (`state.ticket` or the named ticket) has `phase: code`, the role is `backend` or `frontend`, and `tickets.<id>.roles.<role>.planStatus == approved` (legacy: `roles.<role>.planStatus`).
+1. **Gate check.** State `active: true`. This ticket (`state.ticket` or the named ticket) has `phase: code`, the role is `backend`, `frontend`, or `fullstack`, and `tickets.<id>.roles.<role>.planStatus == approved` (legacy: `roles.<role>.planStatus`).
 2. **Dependencies.** Read `tickets.<id>.dependsOn` (and intake frontmatter `dependsOn`). If any listed ticket is still in `state.tickets` with `phase != done`:
    - You **may** write `*.implementation.plan.md` and `*.implementation-questions.md` (`mode: plan`).
    - You **must not** spawn implement or write application source. Tell the human which tickets are blocking. Independent tickets can still be implemented in another chat.
 3. **Branch, and worktree only if parallel.** Always use branch `awe/<ticket>-<role>` cut from `baseBranch`. **Do not create a worktree by default.**
 
-   Create `.worktrees/<ticket>-<role>` **only when** another in-flight ticket is already in `code|review|verify|ship` (it holds a branch), **or** the main tree is already on `awe/<other-ticket>-*`. That is the git-worktree case: two plans implementing at once without clobbering each other.
+   Create `.worktrees/<ticket>-<role>` **only when** another in-flight ticket is already in `code|review|smoke|ship` (it holds a branch), **or** the main tree is already on `awe/<other-ticket>-*`. That is the git-worktree case: two plans implementing at once without clobbering each other.
 
 ```bash
 REPO=<workspace git root>
@@ -73,7 +73,7 @@ that FAILS        to make it         tests still
 
 - **Bug fixes use Prove-It:** reproduce as a failing test *before* fixing (`/awe-regression`).
 
-6. **Spawn** `awe-backend-dev` or `awe-frontend-dev` only. Brief includes `mode: plan` or `mode: implement`. Do **not** spawn implement while `dependsOn` is unmet.
+6. **Spawn** `awe-backend-dev`, `awe-frontend-dev`, or `awe-fullstack-dev` only (match the role). Brief includes `mode: plan` or `mode: implement`. Do **not** spawn implement while `dependsOn` is unmet. Fullstack must not fan out into FE+BE.
 7. **When plan mode returns:**
    - If `*.implementation-questions.md` still has `- [ ]` → tell the human where to answer. **Do not** continue to implement or to `/awe-review`.
    - If `dependsOn` is unmet → tell the human which tickets must reach `done`. **Do not** spawn implement.

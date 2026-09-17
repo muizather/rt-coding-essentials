@@ -259,7 +259,7 @@ function makePrompter() {
   };
 }
 
-const ROLE_CHOICES = ['backend', 'frontend'];
+const ROLE_CHOICES = ['backend', 'frontend', 'fullstack'];
 const TICKET_CHOICES = ['none', 'redmine', 'jira', 'github', 'gitlab'];
 
 async function gatherAnswers(p) {
@@ -298,8 +298,11 @@ async function gatherAnswers(p) {
 function validateAnswers(a) {
   const roles = String(a.roles).split(',').map((r) => r.trim().toLowerCase()).filter(Boolean);
   const badRoles = roles.filter((r) => !ROLE_CHOICES.includes(r));
+  if (roles.includes('fullstack') && roles.length > 1) {
+    fail(`Invalid roles "${a.roles}".`, '`fullstack` cannot be combined with backend/frontend — it replaces both for a same-repo stack.');
+  }
   if (roles.length === 0 || badRoles.length > 0) {
-    fail(`Invalid roles "${a.roles}".`, `Choose from: ${ROLE_CHOICES.join(', ')} (comma-separated).`);
+    fail(`Invalid roles "${a.roles}".`, `Choose from: ${ROLE_CHOICES.join(', ')} (comma-separated). fullstack is exclusive.`);
   }
   const iterations = parseInt(a.reviewIterations, 10);
   if (!Number.isInteger(iterations) || iterations < 1 || iterations > 10) {
@@ -610,7 +613,7 @@ function summary(ops, results, answers, gitignoreAction) {
   kv('Uninstall', `node ${path.join(AWE_ROOT, 'setup.mjs')} --uninstall ${FLAGS.target ? `--target ${FLAGS.target}` : ''}`.trim() + dim('  (removes only AWE-managed files)'));
   kv('Docs', `${path.join(AWE_ROOT, 'README.md')} · ${path.join(AWE_ROOT, 'docs/GUIDE.md')} (install scopes + demo)`);
 
-  console.log('\n' + ok(bold('  ✓ AWE is installed.')) + dim('  INTAKE → ARCHITECT → APPROVE → CODE → REVIEW → VERIFY → SHIP → POST-MERGE E2E\n'));
+  console.log('\n' + ok(bold('  ✓ AWE is installed.')) + dim('  INTAKE → ARCHITECT → APPROVE → CODE → REVIEW → SMOKE → SHIP → POST-MERGE E2E\n'));
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────

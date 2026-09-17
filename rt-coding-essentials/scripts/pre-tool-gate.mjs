@@ -22,7 +22,7 @@ import path from 'node:path';
 import {
   runHook, respond, loadState, isActive, projectDir, extractFilePath, extractToolContent, relPath,
   sourceWriteAllowedInCodePhase, getTicketEntry, unmetDependencies,
-  resolveWriteTicket, PLAN_ONLY_PHASES, IMPLEMENT_PHASES, ticketsInPhases,
+  resolveWriteTicket, PLAN_ONLY_PHASES, IMPLEMENT_PHASES, ticketsInPhases, isSmokePhase,
 } from './lib/state.mjs';
 import { audit } from './lib/audit.mjs';
 
@@ -36,6 +36,7 @@ const TAMPER_PROTECTED = [
 const ALWAYS_WRITABLE = [
   /^plans\//,
   /^\.cursor\/state\//,
+  /^docs\/awe\//,
   /^docs\/domain-model\//,
   // Child git repo plan folders (platform workspace: magento/plans/, nestjs/plans/, …)
   /^[^./][^/]*\/plans\//,
@@ -139,10 +140,10 @@ await runHook(async (input) => {
   const entry = getTicketEntry(state, ticketId);
   const phase = entry?.phase || state.phase;
 
-  if (PLAN_ONLY_PHASES.has(phase) || phase === 'verify' || phase === 'ship' || phase === 'done') {
+  if (PLAN_ONLY_PHASES.has(phase) || isSmokePhase(phase) || phase === 'ship' || phase === 'done') {
     const why = PLAN_ONLY_PHASES.has(phase)
       ? `code emission is blocked until its plans are approved (phase=code)`
-      : `application source is blocked in phase ${phase} (Playwright specs belong under plans/${ticketId ?? '<ticket>'}/e2e/; bounce VERIFY needs-fix to phase=code)`;
+      : `application source is blocked in phase ${phase} (Playwright specs belong under plans/${ticketId ?? '<ticket>'}/e2e/; bounce smoke needs-fix to phase=code)`;
     audit(dir, 'preToolUse', 'deny', `phase=${phase}: write outside plans/ blocked`, {
       path: rel, ticket: ticketId, phase,
     });

@@ -5,7 +5,7 @@ description: Review one role's diff — scanners, adversarial functional review,
 
 # awe-review
 
-**Purpose.** Adversarially review a role's completed work. Loops coder↔reviewer up to the configured budget, then escalates to a human. When every role is `verified`, the pipeline moves to `verify`.
+**Purpose.** Adversarially review a role's completed work. Loops coder↔reviewer up to the configured budget, then escalates to a human. When every role is `verified`, the pipeline moves to `smoke`.
 
 ## Procedure
 
@@ -18,7 +18,7 @@ description: Review one role's diff — scanners, adversarial functional review,
 6. **Act on the verdict** (needs-fix from the functional reviewer, or from the security reviewer when `securityReview` is on). **A single Critical finding fails the iteration** — severity labels decide what burns a round: Critical/Required → needs-fix; Optional/Nit/FYI never block alone.
    - **needs-fix AND `iteration < reviewIterations`** → increment `roles.<role>.iteration`, update `handoff.md` "Prior review findings" with round-N findings, require the coder to write `plans/<ticket>/reviews/round-<N>-response.md` (each finding → **fixed** / **rebutted** / **deferred**, with proof), append the same bullets to `ticket-updates.md`, set phase `code`, and respawn the coder via the `/awe-code <role>` procedure. Do not spawn the next review round until that response file exists.
    - **needs-fix AND budget reached** → write `plans/<ticket>/ESCALATION.md` (unresolved findings, what was tried across rounds, recommended human decision: more budget / human fix / scope cut), tell the human plainly, STOP. Three rounds unresolved = human escalation, not silent shipping.
-   - **verified from the required reviewer(s)** → set `roles.<role>.verified: true`, `planStatus` stays `approved`. If the round had leftover nits, still write `round-<N>-response.md` (`deferred` / accepted). When **all** roles are verified → set `phase: verify` and continue to `/awe-verify` when this is `/awe-run`, otherwise tell the human to run `/awe-verify`. Otherwise report which roles remain. Follow `references/mcp-report.md` (journal always; ticket comment if tools exist).
+   - **verified from the required reviewer(s)** → set `roles.<role>.verified: true`, `planStatus` stays `approved`. If the round had leftover nits, still write `round-<N>-response.md` (`deferred` / accepted). When **all** roles are verified → set `phase: smoke` and continue to `/awe-smoke` when this is `/awe-run`, otherwise tell the human to run `/awe-smoke`. Otherwise report which roles remain. Follow `references/mcp-report.md` (journal always; ticket comment if tools exist).
 7. **Always report** the findings table to the human, even on success — the human is the backstop reviewer.
 
 ## Doubt-driven iteration (per-round protocol)

@@ -1,5 +1,5 @@
 <!-- Adapted from agent-skills (https://github.com/addyosmani/agent-skills), Copyright (c) 2025 Addy Osmani, MIT License — see NOTICE. -->
-<!-- Source: skills/debugging-and-error-recovery. Referenced by awe-verify (stop-the-line on a failed human check) and awe-regression (the fix workflow). -->
+<!-- Source: skills/debugging-and-error-recovery. Referenced by awe-smoke (stop-the-line on a failed human check) and awe-regression (the fix workflow). -->
 
 # Debugging Triage & Stop-the-Line
 

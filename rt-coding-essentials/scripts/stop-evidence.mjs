@@ -5,14 +5,15 @@
 //
 //   1. EVIDENCE (code|review): awe-evidence.json testsPassed + at < 2h.
 //   2. REVIEW BUDGET: all roles' iteration >= reviewIterations → escalate.
-//   3. VERIFY: Playwright awe-verify-evidence.json, or verifyIteration budget.
+//   3. SMOKE: Playwright awe-smoke-evidence.json, or smokeIteration budget.
 //
 // loop_limit (8 in hooks.json) caps how many times this can fire per session,
 // so a stuck agent cannot loop forever.
 
 import {
   runHook, respond, loadState, loadStateJson, loadConfig, isActive,
-  projectDir, minutesSince, EVIDENCE_FILE, VERIFY_EVIDENCE_FILE, listTickets, IMPLEMENT_PHASES,
+  projectDir, minutesSince, EVIDENCE_FILE, loadSmokeEvidence, listTickets, IMPLEMENT_PHASES,
+  isSmokePhase, smokeIterationOf,
 } from './lib/state.mjs';
 import { audit } from './lib/audit.mjs';
 
@@ -24,13 +25,13 @@ await runHook(async (input) => {
   if (!isActive(state)) return respond({});
   const tickets = listTickets(state);
   const impl = Object.entries(tickets).filter(([, t]) => IMPLEMENT_PHASES.has(t.phase));
-  const verifying = Object.entries(tickets).filter(([, t]) => t.phase === 'verify');
+  const smoking = Object.entries(tickets).filter(([, t]) => isSmokePhase(t.phase));
 
   const config = loadConfig(dir) || {};
   const testCommand = config.commands?.test || 'npm test';
   const budget = Number.isInteger(config.reviewIterations) ? config.reviewIterations : 3;
 
-  if (!impl.length && !verifying.length) return respond({});
+  if (!impl.length && !smoking.length) return respond({});
 
   // --- Review iteration budget (per ticket) -----------------------------------
   for (const [id, t] of impl) {
@@ -51,37 +52,37 @@ await runHook(async (input) => {
     }
   }
 
-  // --- VERIFY iteration budget + Playwright evidence --------------------------
-  for (const [id, t] of verifying) {
-    if ((t.verifyIteration ?? 0) >= budget) {
-      audit(dir, 'stop', 'escalate', `verify budget (${budget}) exhausted`, { ticket: id });
+  // --- Smoke iteration budget + Playwright evidence ---------------------------
+  for (const [id, t] of smoking) {
+    if (smokeIterationOf(t) >= budget) {
+      audit(dir, 'stop', 'escalate', `smoke budget (${budget}) exhausted`, { ticket: id });
       return respond({
         followup_message:
-          `VERIFY BUDGET EXHAUSTED: ${id} has used ${budget} Playwright verify iteration(s) without a green run. ` +
+          `SMOKE BUDGET EXHAUSTED: ${id} has used ${budget} Playwright smoke iteration(s) without a green run. ` +
           `Three rounds unresolved = human escalation, not silent shipping. ` +
-          `Do NOT spawn more verify or code rounds. Write plans/${id}/ESCALATION.md ` +
+          `Do NOT spawn more smoke or code rounds. Write plans/${id}/ESCALATION.md ` +
           `(failed scenarios, what was tried, recommended human decision) and stop for the human.`,
       });
     }
   }
-  if (verifying.length) {
-    const ve = loadStateJson(VERIFY_EVIDENCE_FILE, dir);
+  if (smoking.length) {
+    const ve = loadSmokeEvidence(dir);
     const vFresh = ve && ve.playwrightPassed === true && minutesSince(ve.at) <= EVIDENCE_MAX_AGE_MIN;
     if (!vFresh) {
       const why = !ve
-        ? 'no verify evidence file'
+        ? 'no smoke evidence file'
         : ve.playwrightPassed !== true
           ? 'playwrightPassed is not true'
-          : 'verify evidence is stale (>2h)';
+          : 'smoke evidence is stale (>2h)';
       audit(dir, 'stop', 'continue', `missing fresh Playwright evidence (${why})`, {
-        ticket: verifying[0][0],
+        ticket: smoking[0][0],
       });
       return respond({
         followup_message:
-          `ANTI-RATIONALIZATION GATE: No fresh Playwright VERIFY evidence found (${why}). ` +
+          `ANTI-RATIONALIZATION GATE: No fresh Playwright smoke evidence found (${why}). ` +
           `Run the Gherkin specs with Playwright on localhost and write ` +
-          `.cursor/state/awe-verify-evidence.json as {"playwrightPassed": true, "command": "npx playwright test -c plans/<ticket>/e2e", "video": "<path or null>", "trace": "<path or null>", "at": "<ISO timestamp>"}. ` +
-          `Human steps without a green local run are not VERIFY.`,
+          `.cursor/state/awe-smoke-evidence.json as {"playwrightPassed": true, "command": "npx playwright test -c plans/<ticket>/e2e", "video": "<path or null>", "trace": "<path or null>", "at": "<ISO timestamp>"}. ` +
+          `Human steps without a green local run are not smoke.`,
       });
     }
   }

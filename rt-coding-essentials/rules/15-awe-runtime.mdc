@@ -5,7 +5,7 @@ alwaysApply: true
 
 # AWE Runtime (plugin)
 
-No `awe.config.json` is required. Optional local `awe.config.json` overrides discovered values. Rule 30/40 are not part of this plugin — project-specific lessons belong in the user's own Cursor rules or in the codebase-memory ADR store.
+No `awe.config.json` is required. Optional local `awe.config.json` overrides discovered values. Rule 30/40 are not part of this plugin — project-specific lessons belong in the user's own Cursor rules, `docs/awe/`, or the codebase-memory ADR store.
 
 ## Discover (do not invent commands)
 
@@ -13,8 +13,12 @@ On first use in a workspace, settings live in `.cursor/state/awe-discovered.json
 
 - **baseBranch** — `origin/HEAD`, else `main` / `master` / `develop`, else the current branch
 - **commands.test** — this repo's actual test script (`package.json` / `pytest` / `go test` / `cargo test` / `make test` / wrappers). Never assume `npm test` without looking
-- **roles** — `backend` and/or `frontend` from the tree; default `backend`. Never child-repo folder names.
-- **local** — how this workspace starts (`package.json` `dev`/`start`, compose files, per-git-child services). VERIFY uses this; never invent URLs. One git root = one project (install the plugin in that folder). A parent of child git repos = family. There is no required “architect” parent folder.
+- **roles** — `backend`, `frontend`, and/or `fullstack` from the tree + **sibling git repos**; default `backend`. Never child-repo folder names.
+  - CMS bundled storefront (Magento `app/design/frontend`, WP themes) is **not** a frontend role.
+  - Same git root with first-party UI **and** server, no sibling SPA → `fullstack`.
+  - Magento (or other CMS/API) **plus** a sibling Next/Nuxt/React app (ipromo) → split `backend` + `frontend`, never fullstack on Magento.
+- **rolesReason** / **rolesClassified** — why those roles were chosen (so the architect can record it in `docs/awe/` when it is a stable product fact).
+- **local** — how this workspace starts (`package.json` `dev`/`start`, compose files, per-git-child services). SMOKE uses this; never invent URLs. One git root = one project (install the plugin in that folder). A parent of child git repos = family. There is no required “architect” parent folder.
 
 If `awe.config.json` exists, its fields win. Hooks read the merged result via `loadConfig`.
 
@@ -25,33 +29,33 @@ AWE ships `codebase-memory-mcp@0.10.8` in the plugin. The human still has to **e
 Before architecture or coding, follow `skills/references/code-graph.md`:
 
 1. If graph tools are missing → **STOP**. Enable **one** codebase-memory server, reload.
-2. Discover the git family; derive `.cbmignore` (do not interview); sequential `index_repository` `mode: "full"`; then `cross-repo-intelligence` when there are two or more members.
-3. Plan against the graph at the grain the role allows: **architect** = root (projects, routes, CROSS_*); **coder** = this repo’s files. File grep is fallback only after a coverage miss.
+2. Discover the git family; derive ignores, sequential `index_repository` `mode: "full"`; then `cross-repo-intelligence` when there are two or more members.
+3. Plan against the graph at the grain the role allows: **architect** = any `docs/awe/` briefing that exists (skip missing), then root (projects, routes, CROSS_*); **coder** = this repo’s files. File grep is fallback only after a coverage miss.
 
-Coding agents (`awe-backend-dev`, `awe-frontend-dev`) must learn the **actual code** before they write an implementation plan. If `docs/domain-model/` exists they should read the relevant context; they must not skip the graph. The architect does **not** run a DDD reverse-engineering pass as part of every ticket.
+Coding agents (`awe-backend-dev`, `awe-frontend-dev`, `awe-fullstack-dev`) must learn the **actual code** before they write an implementation plan. They read `docs/awe/` **when it exists**, then the graph. If `docs/domain-model/` exists they should read the relevant context. The architect does **not** run a DDD reverse-engineering pass as part of every ticket.
 
 Do not quietly degrade to "search the tree and hope."
 
-## Knowledge (ADRs, not plugin rules)
+## Knowledge (ADRs + optional briefing)
 
-Two stores:
+Three stores:
 
 - **Code map** — the graph (index + watcher). Agents do not write essays into it.
-- **Project knowledge** — `manage_adr` on the same MCP (decisions, invariants, "staging bucket is shared").
+- **Project briefing** — optional committed files under `docs/awe/` (PRD, apps, connections, deploy). The architect reads what exists; **missing files never stop a ticket**. Update only when this usage taught a lasting fact. See `skills/references/project-briefing.md`.
+- **Decisions** — `manage_adr` on the same MCP (invariants, "staging bucket is shared") plus committed ADRs at ship when the repo uses them.
 
-Write or update an ADR when:
+Write or update when:
 
-- The user says this is knowledge / remember this / "we always …" → `/awe-remember` (or the same procedure inline).
-- A ticket **ships** and a real decision was made (approach, rejected alternative, invariant). Skip drive-by refactors.
+- The user says this is knowledge / remember this / "we always …" → `/awe-remember` (ADR + briefing when it is a product fact).
+- A ticket **ships** and the domain briefing actually changed → knowledge pass updates `docs/awe/`. Skip if nothing to add.
+- First architect run with no briefing → continue; create a file only if you already have a lasting fact worth writing.
 
 Never copy repo A's ADRs into repo B. Never put tribal knowledge into AWE plugin rules.
 
-Optional markdown under the app's `docs/` only if the human asked for committed docs.
-
 ## Orchestration
 
-Prefer `/awe-run` (or a natural-language ticket). It chains intake → architect → code → review until tests are green. It **stops** for an explicit **yes** at APPROVE and for VERIFY (watch the Playwright **HTML report**, then sign). Hedged chat is not approval. A second `/awe-run` while another plan is open **starts a new plan** (or resumes the named ticket). It records `dependsOn` when the work shares a surface; it does not refuse intake.
+Prefer `/awe-run` (or a natural-language ticket). It chains intake → architect → code → review until tests are green. It **stops** for an explicit **yes** at APPROVE and for SMOKE (watch the Playwright **HTML report**, then sign). Hedged chat is not approval. A second `/awe-run` while another plan is open **starts a new plan** (or resumes the named ticket). It records `dependsOn` when the work shares a surface; it does not refuse intake.
 
 ## Optional reporting
 
-Always append `plans/<ticket>/ticket-updates.md`. If Slack or a write-capable ticket MCP (Redmine/Jira/GitHub/GitLab) is actually available, post the same short bullets at phase boundaries (questions waiting, review needs-fix, coder response, verified, VERIFY green, PR opened). If they are not connected, **skip the MCP post** — do not fail the pipeline. See `skills/references/mcp-report.md`.
+Always append `plans/<ticket>/ticket-updates.md`. If Slack or a write-capable ticket MCP (Redmine/Jira/GitHub/GitLab) is actually available, post the same short bullets at phase boundaries (questions waiting, review needs-fix, coder response, verified, SMOKE green, PR opened). If they are not connected, **skip the MCP post** — do not fail the pipeline. See `skills/references/mcp-report.md`.

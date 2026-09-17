@@ -2,13 +2,14 @@
 name: awe-remember
 description: >-
   Capture project knowledge the user just stated (invariants, gotchas, house
-  style) into the codebase-memory ADR store. Use when they say remember this,
-  this is knowledge, we always/never do X, or similar.
+  style) into the codebase-memory ADR store and the living project map. Use
+  when they say remember this, this is knowledge, we always/never do X, or
+  similar.
 ---
 
 # awe-remember
 
-**Purpose.** Persist **tribal knowledge** that is not in the AST. The code graph maps files and calls; this stores decisions and invariants via `manage_adr`.
+**Purpose.** Persist **tribal knowledge** that is not in the AST. The code graph maps files and calls; this stores decisions and invariants via `manage_adr`, and product facts (which app is the real UI) in `docs/awe/`. Follow `references/project-briefing.md`.
 
 ## Procedure
 
@@ -17,10 +18,11 @@ description: >-
 3. Restate the knowledge in one or two sentences and ask them to confirm if it was ambiguous. Do not invent extra policy.
 4. `manage_adr` **get** / **sections** for this project. If an ADR already covers the topic, **set_sections** / update that document. Otherwise create one with a clear title (e.g. "Staging bucket is shared — do not run integration tests against it").
 5. Ground the write in the real repo when you can (`search_graph` / paths). No secrets, no tokens, no `.env` values.
-6. Do **not** add AWE plugin rules, do **not** write `40-awe-project-custom.mdc` unless they asked to add a **project** Cursor rule in **this** repo.
-7. Optional committed markdown under `docs/` **only if they asked**.
-8. Tell them the ADR title and that it applies to this project graph only.
+6. **Project briefing.** If the knowledge is a product/architecture/connection/deploy fact, update the matching file under `docs/awe/` (or add one). Same surface → existing section. Missing `docs/awe/` is fine — create a file only when this fact is worth a lasting briefing. Gotchas that are not product shape stay ADR-only.
+7. Do **not** add AWE plugin rules, do **not** write `40-awe-project-custom.mdc` unless they asked to add a **project** Cursor rule in **this** repo.
+8. Tell them the ADR title, which map/feature file changed (if any), and that it applies to this project graph only.
 
 ## Exit criteria
 
 - Knowledge is in `manage_adr` for **this** repo; user can see the title/summary.
+- Product/architecture facts that belong in the briefing are in `docs/awe/` **when they were worth writing**; missing briefing files are not a failure.

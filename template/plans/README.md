@@ -1,6 +1,6 @@
 # plans/ — the AWE workspace
 
-Every ticket gets a folder `plans/<ticket>/`. It is the single source of truth for what was asked, what was planned, what reviewers said, and what the human verified. Commit these folders — they are your project's memory of *why* the code looks the way it does. Multiple `plans/<ticket>/` folders may exist at once. If one plan cannot be implemented until another is done, set `dependsOn` in intake frontmatter (and in `awe-state.json`). That does not block creating the new plan; it blocks **code** until the dependency is `done`.
+Every ticket gets a folder `plans/<ticket>/`. It is the single source of truth for what was asked, what was planned, what reviewers said, and what the human signed in smoke. Commit these folders — they are your project's memory of *why* the code looks the way it does. Multiple `plans/<ticket>/` folders may exist at once. If one plan cannot be implemented until another is done, set `dependsOn` in intake frontmatter (and in `awe-state.json`). That does not block creating the new plan; it blocks **code** until the dependency is `done`.
 
 ## Lifecycle
 
@@ -10,7 +10,7 @@ Every ticket gets a folder `plans/<ticket>/`. It is the single source of truth f
 /awe-approve             → spec frontmatter flips to status: approved, approvals.md
 /awe-code backend        → implementation.plan.md + implementation-questions.md, then code (questions must be closed)
 /awe-review backend      → reviews/round-1.md + round-1-response.md after the coder replies
-/awe-verify              → verification.md + e2e/run-verify.sh (human signs frontmatter; HTML report is the combined viewer)
+/awe-smoke               → smoke.md + e2e/run-smoke.sh (human signs frontmatter; HTML report is the combined viewer)
 /awe-ship                → pr-body.md (when no git MCP is configured)
 /awe-regression "..."    → plans/PROJ-123-R1/ (links back to the original folder)
 ```
@@ -52,7 +52,7 @@ Context → chosen approach (+ rejected alternatives) → role dependency graph 
 ```markdown
 ---
 ticket: PROJ-123
-role: backend | frontend | infra
+role: backend | frontend | fullstack
 status: draft | questions-open | approved   # only /awe-approve writes "approved"
 dependsOn: [frontend]
 openQuestions: [Q1]
@@ -70,15 +70,15 @@ Scanner output + both reviewers' JSON verdicts + combined findings table for rou
 Coder disposition of that round: each finding → **fixed** / **rebutted** / **deferred**, with proof. Required before the next review round.
 
 ### ticket-updates.md
-Append-only journal (review/verify/ship bullets). Copied to the originating Redmine/Jira/GitHub/GitLab ticket when a write-comment MCP exists.
+Append-only journal (review/smoke/ship bullets). Copied to the originating Redmine/Jira/GitHub/GitLab ticket when a write-comment MCP exists.
 
-### verification.md
-Numbered human test steps plus paths to the Playwright **HTML report** (combined viewer), **video** (UI), and/or **trace** (API). Frontmatter `verified: false` → the human flips it to `true` with initials + date after watching the report.
+### smoke.md
+Numbered human test steps plus paths to the Playwright **HTML report** (combined viewer), **video** (UI), and/or **trace** (API). Frontmatter `signed: false` → the human flips it to `true` with initials + date after watching the report.
 
 ### local-run.md
-Per-ticket slice: which local services are up, what is mocked/skipped, which gherkin scenarios Playwright will run. Generated during VERIFY from discovered `local` start commands.
+Per-ticket slice: which local services are up, what is mocked/skipped, which gherkin scenarios Playwright will run. Generated during SMOKE from discovered `local` start commands.
 
-### e2e/run-verify.sh
+### e2e/run-smoke.sh
 Portable re-run of this ticket's Playwright suite. No sandbox browser paths.
 
 ### ESCALATION.md

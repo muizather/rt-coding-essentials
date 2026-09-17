@@ -10,7 +10,7 @@ description: Ship phase — pre-flight checks, commit, push the awe/<ticket>-* b
 ## Pre-flight (all must pass — check and report each)
 
 1. State `active: true`, this ticket `phase: ship`.
-2. `.cursor/state/awe-signoff.json` exists with `verified: true` (human verify gate).
+2. `.cursor/state/awe-signoff.json` exists with `verified: true` (human signed the smoke report).
 3. `.cursor/state/awe-evidence.json` has `testsPassed: true` and `at` younger than 2 hours — stale? Re-run the configured test command on this ticket's branch (worktree only if one was created for parallel work) and refresh evidence first.
 4. Scanners clean on the final diffs (built-ins always; gitleaks/semgrep/osv-scanner when available; strict mode requires them).
 5. Current branch for each shipping role matches `awe/<ticket>-*` — the shell gate denies anything else.
@@ -23,11 +23,11 @@ description: Ship phase — pre-flight checks, commit, push the awe/<ticket>-* b
 2. **Rebase check**: `git fetch origin <baseBranch>` and report if the branch is behind; if it is, stop and let the human decide rebase vs. merge (never silently rewrite).
 3. **Push** each `awe/<ticket>-*` branch: `git push -u origin awe/<ticket>-<role>`. The before-shell gate will allow it because pre-flight passed.
 4. **Open the PR** targeting the configured base branch:
-   - If the GitHub/GitLab MCP is configured, create it via MCP: title `<ticket>: <summary>`, body = links to `plans/<ticket>/` artifacts (architecture, verification.md summary, review rounds), checklist of acceptance criteria.
+   - If the GitHub/GitLab MCP is configured, create it via MCP: title `<ticket>: <summary>`, body = links to `plans/<ticket>/` artifacts (architecture, smoke.md summary, review rounds), checklist of acceptance criteria.
    - Otherwise print the exact commands for the human, e.g. `gh pr create --base <baseBranch> --head awe/<ticket>-<role> --title "..." --body-file plans/<ticket>/pr-body.md` (write `pr-body.md` for them).
 5. **Multi-role tickets**: open one PR per role and note the merge order from the architecture dependency graph, or combine branches if the human prefers one PR — ask.
-6. **Print post-merge E2E instructions**: after the human merges, pull the base branch, run the combined E2E steps from `verification.md` against the merged result, watch the rollout against the thresholds in `references/ship-decision.md` (error rate > 2× baseline ⇒ roll back; P95 + 50% ⇒ roll back), and apply the **error-budget gate** (budget exhausted ⇒ freeze feature work). File any regression with `/awe-regression <description>`. Then set **this ticket** `phase: done`. Set `active: false` **only if** no other ticket is still in-flight; otherwise keep `active: true` and leave the others untouched. A regression re-activates via the regression skill.
-7. **Knowledge pass (required after a real ship).** If codebase-memory `manage_adr` is available: spawn `awe-architect` (still no app code) to record lasting decisions from this ticket (approach, rejected alternatives, new invariants). Skip if the change was trivial. Follow `/awe-remember` if the human also stated extra knowledge.
+6. **Print post-merge E2E instructions**: after the human merges, pull the base branch, run the combined E2E steps from `smoke.md` against the merged result, watch the rollout against the thresholds in `references/ship-decision.md` (error rate > 2× baseline ⇒ roll back; P95 + 50% ⇒ roll back), and apply the **error-budget gate** (budget exhausted ⇒ freeze feature work). File any regression with `/awe-regression <description>`. Then set **this ticket** `phase: done`. Set `active: false` **only if** no other ticket is still in-flight; otherwise keep `active: true` and leave the others untouched. A regression re-activates via the regression skill.
+7. **Knowledge pass (optional after a real ship).** Follow `references/project-briefing.md`. The orchestrator writes `docs/awe/**` only when this ticket changed the product briefing (PRD, apps, connections, deploy strategy). Same surface → edit the existing section. **Skip if there is nothing to add** — missing `docs/awe/` is not a ship blocker. If codebase-memory `manage_adr` is available, record lasting *decisions* (approach, rejected alternatives, invariants); skip trivia. Follow `/awe-remember` if the human also stated extra knowledge.
 8. **Report** per `references/mcp-report.md` (journal always; Slack/ticket/PR comments if those tools exist). The create-PR/MR call is enough for git forges when that is how you opened it.
 
 ## Ship Decision (mandatory artifact)

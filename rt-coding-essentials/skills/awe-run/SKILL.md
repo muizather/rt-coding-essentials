@@ -4,7 +4,7 @@ description: >-
   Run the AWE pipeline from a ticket or task through coding and review until
   tests are green. Use when the user describes a feature, bug, ticket id, or
   asks to implement something end-to-end. Stops for explicit human yes at
-  approve and for verify (watch Playwright HTML report, then sign). Requires
+  approve and for smoke (watch Playwright HTML report, then sign). Requires
   codebase-memory MCP.
 ---
 
@@ -15,7 +15,7 @@ description: >-
 Human gates that still stop you:
 
 1. **APPROVE** — after architecture, present the summary and wait for an explicit **yes**. Hedges are not approval (`/awe-approve` procedure).
-2. **VERIFY** — after review is green, follow `/awe-verify`: Playwright from Gherkin on localhost, coder loop if it fails, then wait for the human to open the HTML report and sign. Then you may `/awe-ship` if they want.
+2. **SMOKE** — after review is green, follow `/awe-smoke`: Playwright from Gherkin on localhost, coder loop if it fails, then wait for the human to open the HTML report and sign. Then you may `/awe-ship` if they want.
 
 ## 0. Bootstrap (every run)
 
@@ -24,8 +24,8 @@ Human gates that still stop you:
    - If this work **depends** on an in-flight plan (same feature/surface/files, or it cannot ship until that plan is done), record `dependsOn: ["<other>"]` on the new ticket. Independent → `dependsOn: []`. Tell the human what you recorded; they may edit it.
    - **Never block intake or architect** for a dependency. Only **implementation** waits (see `/awe-code`).
 2. **Memory MCP (required).** If `list_projects` / `index_repository` / `search_graph` are missing, STOP: enable **codebase-memory** (one copy only — if a user MCP already works, leave the plugin copy off), reload, retry.
-3. Follow `references/code-graph.md` (git family, derive ignores, sequential `full` index). Architect stays high-level; coding agents go file-grain.
-4. Discovered settings are in `.cursor/state/awe-discovered.json` (sessionStart writes it). Honor optional `awe.config.json` if present. Use `baseBranch`, `commands.test`, and `roles` (`backend` and/or `frontend` only) from there. If roles look wrong, ask once, then proceed.
+3. Follow `references/code-graph.md` (git family, derive ignores, sequential `full` index). Architect stays high-level; coding agents go file-grain. Read `docs/awe/` if it exists; missing briefing files never stop the run.
+4. Discovered settings are in `.cursor/state/awe-discovered.json` (sessionStart writes it). Honor optional `awe.config.json` if present. Use `baseBranch`, `commands.test`, and `roles` (`backend` / `frontend` / `fullstack`) from there. Tell the human `rolesReason` once if it is surprising (e.g. Magento is backend because Next.js is a sibling). If roles look wrong, ask once, then proceed.
 5. Optional: follow `references/mcp-report.md` when Slack or ticket-system MCP tools exist. Always append `plans/<ticket>/ticket-updates.md`.
 
 ## 1. Intake → architect
@@ -38,23 +38,23 @@ Follow `/awe-approve` validation. Ask **"Approve these plans? (yes/no)"**. Only 
 
 ## 3. Code → review loop
 
-For each discovered role (`backend` / `frontend` only), follow `/awe-code <role>` **for this ticket**. If `dependsOn` is unmet, that skill stops before implement — keep planning other independent tickets. Do not start `/awe-review` until implement mode has evidence. Then `/awe-review <role>` including the needs-fix respawn loop up to `reviewIterations`. Spawn `awe-security-reviewer` only when `securityReview` is true.
+For each discovered role (`backend` / `frontend` / `fullstack`), follow `/awe-code <role>` **for this ticket**. If the role is `fullstack`, do **not** also spawn FE+BE. If `dependsOn` is unmet, that skill stops before implement — keep planning other independent tickets. Do not start `/awe-review` until implement mode has evidence. Then `/awe-review <role>` including the needs-fix respawn loop up to `reviewIterations`. Spawn `awe-security-reviewer` only when `securityReview` is true.
 
-When every role is reviewer-`verified`, set `phase: verify`.
+When every role is reviewer-`verified`, set `phase: smoke`.
 
-## 4. Verify (hard stop)
+## 4. Smoke (hard stop)
 
-Follow `/awe-verify`: spawn `awe-verifier` (Playwright from Gherkin, localhost), loop needs-fix to the coder up to `reviewIterations`, then hand the **HTML report** + verify-folder README + `verification.md` to the human. Wait until frontmatter `verified: true` with initials + date, then write signoff and `phase: ship`. Do not push before that.
+Follow `/awe-smoke`: spawn `awe-smoke-tester` (Playwright from Gherkin, localhost), loop needs-fix to the coder up to `reviewIterations`, then hand the **HTML report** + smoke-folder README + `smoke.md` to the human. Wait until frontmatter `signed: true` with initials + date, then write signoff and `phase: ship`. Do not push before that.
 
 ## 5. Ship + knowledge
 
 If the human wants it shipped, follow `/awe-ship`. After a successful ship (or when they say the ticket is done):
 
-- Spawn a **knowledge pass** (architect, still no app code): if this ticket made a lasting decision, `manage_adr` create/update. Skip trivia.
+- **Knowledge pass** (orchestrator writes `docs/awe/**` only when the briefing actually changed; architect subagent stays read-only): skip if nothing to add. `manage_adr` for lasting decisions. Follow `/awe-remember` if the human also stated extra knowledge.
 - MCP report the PR/MR if those tools exist.
 
 ## Exit criteria
 
-- Ticket either waiting on a human gate (questions / approve / verify) with a clear ask, or review-verified with evidence, or shipped.
+- Ticket either waiting on a human gate (questions / approve / smoke) with a clear ask, or review-verified with evidence, or shipped.
 - Graph was used; no silent fallback.
 - No phase skipped.

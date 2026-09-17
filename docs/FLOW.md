@@ -8,7 +8,7 @@ actually running, and the hook test suite, see [GUIDE.md](GUIDE.md).
 
 - **Skill** — a slash-command playbook you invoke (`/awe-intake`, `/awe-code`, …).
 - **Hook** — a script Cursor runs around a tool call (write, shell, subagent spawn, stop) that can allow/deny it.
-- **Subagent** — a fresh-context agent the orchestrator spawns (architect, dev, reviewer, verifier).
+- **Subagent** — a fresh-context agent the orchestrator spawns (architect, dev, reviewer, smoke tester).
 - **Worktree** — an isolated git working copy on its own branch. Created only when two+ plans are implementing at once so they do not collide.
 
 ## The whole pipeline
@@ -20,16 +20,16 @@ flowchart TD
     C --> D{"All open questions answered? All dependent plans approved?"}
     D -- "no (async, non-blocking)" --> DQ["open-questions.md waits; other tasks proceed in parallel"]
     DQ --> D
-    D -- "yes — /awe-approve (HUMAN GATE)" --> E["/awe-code backend | frontend — branch awe/TICKET-role; worktree only if another plan is already implementing"]
+    D -- "yes — /awe-approve (HUMAN GATE)" --> E["/awe-code backend | frontend | fullstack — branch awe/TICKET-role; worktree only if another plan is already implementing"]
     E --> F["Coding agent implements + tests — writes awe-evidence.json"]
     F --> G["/awe-review — functional + security passes + deterministic scanners"]
     G --> H{"Verdict"}
     H -- "needs-fix, iteration < 3" --> F
     H -- "3 rounds unresolved" --> ESC["ESCALATION.md — human takes over"]
-    H -- "verified" --> I["/awe-verify — Playwright Gherkin on localhost; HTML report + video/trace + human steps (HUMAN GATE)"]
+    H -- "verified" --> I["/awe-smoke — Playwright Gherkin on localhost; HTML report + video/trace + human steps (HUMAN GATE)"]
     I --> J["/awe-ship — pre-flight + PR; CI hard gate must pass"]
     J --> K["Merge → deploy dev/staging"]
-    K --> L["Post-merge combined E2E verification"]
+    K --> L["Post-merge combined E2E smoke"]
     L -- "bug found" --> M["/awe-regression — linked folder re-enters at ARCHITECT"]
     M --> C
     L -- "clean" --> N["Done"]
@@ -43,15 +43,15 @@ flowchart TD
 
 **3 — APPROVE** (`/awe-approve`) ▣ **human gate**. Validates any architect questions are answered, rejects hedged approvals ("looks reasonable" ≠ yes), then flips each **spec** to `status: approved`. *Hooks involved:* `pre-tool-gate.mjs` blocks **this ticket's** code writes until this flips its `phase: code`; another ticket already in `code` is not frozen. The plan-clobber guard makes approved specs append-only.
 
-**4 — CODE** (`/awe-code <role>`). Branch `awe/<ticket>-<role>`. A worktree is created **only** when another plan is already in `code|review|verify|ship`. Writes `handoff.md`, spawns `awe-backend-dev` or `awe-frontend-dev`. The coder first writes a low-level `implementation.plan.md` (files, tests, today's advisory search) and `implementation-questions.md`. Open implementation questions **block source writes**. Unmet `dependsOn` blocks **implement**, not the plan files. Then TDD using the repo's own commands. *Hooks involved:* `pre-tool-gate.mjs` allows source only after questions are closed and dependencies are `done`; `post-tool-scan.mjs` secret-scans every edit; `before-shell.mjs` blocks dangerous commands; `stop-evidence.mjs` refuses to end the session without fresh evidence.
+**4 — CODE** (`/awe-code <role>`). Branch `awe/<ticket>-<role>`. A worktree is created **only** when another plan is already in `code|review|smoke|ship`. Writes `handoff.md`, spawns `awe-backend-dev`, `awe-frontend-dev`, or `awe-fullstack-dev`. The coder first writes a low-level `implementation.plan.md` (files, tests, today's advisory search) and `implementation-questions.md`. Open implementation questions **block source writes**. Unmet `dependsOn` blocks **implement**, not the plan files. Then TDD using the repo's own commands. *Hooks involved:* `pre-tool-gate.mjs` allows source only after questions are closed and dependencies are `done`; `post-tool-scan.mjs` secret-scans every edit; `before-shell.mjs` blocks dangerous commands; `stop-evidence.mjs` refuses to end the session without fresh evidence.
 
 **5 — REVIEW** (`/awe-review <role>`). Runs scanners, then spawns `awe-reviewer` — a fresh-context **adversarial** pass over the diff against the spec, gherkin, and implementation plan. `awe-security-reviewer` is optional (`securityReview: true`). Findings are severity-labeled (Critical ⇒ the iteration fails). *needs-fix* respawns the coder; *verified* moves on; three unresolved rounds write `ESCALATION.md` and hand it to you.
 
-**6 — VERIFY** (`/awe-verify`) ▣ **human gate**. The `awe-verifier` runs architect Gherkin on **localhost** with mandatory Playwright (browser **video** for UI; API **trace** for backend; **HTML report** as the combined viewer). Failures respawn the coder (`verifyIteration`, budget 3). On green it writes `verification.md`, `e2e/run-verify.sh`, and `.cursor/state/verify/<ticket>/README.md`. You open `npx playwright show-report .cursor/state/verify/<ticket>-html-report` and sign; a post-signoff failure is stop-the-line → `/awe-regression`. On pass you set `verified: true` + initials + date, and the skill writes `awe-signoff.json`.
+**6 — SMOKE** (`/awe-smoke`) ▣ **human gate**. The `awe-smoke-tester` runs architect Gherkin on **localhost** with mandatory Playwright (browser **video** for UI; API **trace** for backend; **HTML report** as the combined viewer). Failures respawn the coder (`smokeIteration`, budget 3). On green it writes `smoke.md`, `e2e/run-smoke.sh`, and `.cursor/state/smoke/<ticket>/README.md`. You open `npx playwright show-report .cursor/state/smoke/<ticket>-html-report` and sign; a post-signoff failure is stop-the-line → `/awe-regression`. On pass you set `signed: true` + initials + date, and the skill writes `awe-signoff.json`.
 
 **7 — SHIP** (`/awe-ship`). Pre-flight checks signoff + fresh evidence + clean scanners, writes the **Ship Decision** artifact (`ship-decision.md`: GO/NO-GO + rollback plan + RTO) and checks the **ADR docs gate**. Then commits, pushes `awe/<ticket>-*` (allowed by `before-shell.mjs` only now), and opens the PR via MCP or printed `gh`/`glab` commands.
 
-**8 — POST-MERGE E2E.** After you merge and CI's hard gate passes, run the combined end-to-end steps from `verification.md` against the merged result, watching the rollout thresholds and error-budget gate. A regression re-enters at ARCHITECT via `/awe-regression` as `plans/<ticket>-R<N>/`; clean means done.
+**8 — POST-MERGE E2E.** After you merge and CI's hard gate passes, run the combined end-to-end steps from `smoke.md` against the merged result, watching the rollout thresholds and error-budget gate. A regression re-enters at ARCHITECT via `/awe-regression` as `plans/<ticket>-R<N>/`; clean means done.
 
 ---
 
@@ -156,23 +156,23 @@ sequenceDiagram
         Orch-->>Human: escalation — you decide: more budget / human fix / scope cut
     end
 
-    Human->>Orch: /awe-verify
+    Human->>Orch: /awe-smoke
     Orch->>Files: discover local start; Playwright specs from gherkin
     Orch->>Orch: npx playwright test (localhost)
-    alt Playwright needs-fix AND verifyIteration below budget
-        Orch->>Files: bump verifyIteration, append findings to handoff.md
-        Orch->>Coder: respawn (phase=code) then re-enter verify
+    alt Playwright needs-fix AND smokeIteration below budget
+        Orch->>Files: bump smokeIteration, append findings to handoff.md
+        Orch->>Coder: respawn (phase=code) then re-enter smoke
     else budget reached
         Orch->>Files: write ESCALATION.md
         Orch-->>Human: escalation
     else green
-        Orch->>Files: awe-verify-evidence.json + verification.md + run-verify.sh + verify-folder README (HTML report + human steps)
+        Orch->>Files: awe-smoke-evidence.json + smoke.md + run-smoke.sh + smoke-folder README (HTML report + human steps)
         Orch-->>Human: open HTML report (HUMAN GATE)
         alt any step fails — stop the line
             Human->>Orch: /awe-regression DESCRIPTION
             Orch->>Files: plans/PROJ-123-R1/ created, re-enter at architect (Prove-It repro test)
         else all pass
-            Human->>Files: set verified:true + initials + date in verification.md
+            Human->>Files: set verified:true + initials + date in smoke.md
             Human->>Orch: done
             Orch->>Files: write awe-signoff.json, state phase = ship
         end
@@ -186,7 +186,7 @@ sequenceDiagram
     CI-->>Human: CI hard gate runs — gitleaks, semgrep, osv-scanner, checkov, codeql must pass
     Human->>CI: merge
     CI-->>Human: deploy to dev/staging
-    Human->>Orch: run combined post-merge E2E from verification.md
+    Human->>Orch: run combined post-merge E2E from smoke.md
     alt bug found (or error budget burning)
         Orch->>Files: /awe-regression → re-enter at architect as PROJ-123-R1
     else clean
@@ -217,7 +217,7 @@ sequenceDiagram
     Plugin->>Mem: index_repository if needed
     Plugin->>App: plans/<ticket>/ + state (not required in git)
     Note over Plugin: chain intake → architect → code → review
-    Plugin-->>Dev: STOP for explicit yes (approve) and hands-on verify
+    Plugin-->>Dev: STOP for explicit yes (approve) and hands-on smoke
     opt Slack or originating-ticket MCP connected
         Plugin->>Dev: status comments / messages (else ticket-updates.md only)
     end

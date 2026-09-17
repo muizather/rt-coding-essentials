@@ -201,13 +201,13 @@ flowchart LR
       P["/awe-approve"]
       K["/awe-code backend"]
       R["/awe-review backend"]
-      V["/awe-verify"]
+      V["/awe-smoke"]
       S["/awe-ship"]
     end
     subgraph hooks ["Hooks decide"]
       W["writes blocked until approved"]
       E["stop requires fresh tests"]
-      X["push blocked until you signed verification.md"]
+      X["push blocked until you signed smoke.md"]
     end
     I --> A --> P
     P --> W
@@ -268,7 +268,7 @@ sequenceDiagram
 | Phase write-gate | approve + Write `src/` → **deny**; Write `plans/` → **allow** | OpenCode-style plan mode |
 | Tamper | Write `hooks.json` / `awe.config.json` even while inactive → **deny** | agents cannot unplug the gate |
 | Shell baseline | `git push --force`, `curl\|bash`, `npm publish`, `rm -rf /`, metadata IP, `cat ~/.aws` → **deny** | seatbelt always on |
-| Ship push | `git push` in `code` → deny; in `ship` without signoff → ask; with signoff + fresh evidence + `awe/*` branch → allow | human VERIFY is load-bearing |
+| Ship push | `git push` in `code` → deny; in `ship` without signoff → ask; with signoff + fresh evidence + `awe/*` branch → allow | human SMOKE is load-bearing |
 | Read gate | `.env`, `~/.ssh/id_rsa` → deny; `src/ok.ts` → `{}` | secrets stay out of context |
 | Stop evidence | no/stale `awe-evidence.json` → `followup_message`; fresh green → `{}` | cannot declare victory |
 | Secret scan | `AKIA…` / `BEGIN RSA PRIVATE KEY` → `additional_context`; clean file → `{}` | in-loop signal |
@@ -299,7 +299,7 @@ syntax-checks setup + hooks.
    write-gate denies. Point at `.cursor/state/audit.log`.
 6. Answer `open-questions.md` if any → `/awe-architect` → `/awe-approve` → **yes**.
 7. `/awe-code backend` — branch + tests + evidence file (worktree only if another plan is implementing).
-8. `/awe-review backend` → `/awe-verify` — Playwright on localhost, you watch the
+8. `/awe-review backend` → `/awe-smoke` — Playwright on localhost, you watch the
    recording, set `verified: true` + initials.
 9. `/awe-ship` — or stop before push if this is a throwaway.
 
@@ -316,7 +316,7 @@ Optional: enable GitHub MCP in **this project's** `.cursor/mcp.json` (copy the
   load `~/.cursor` hooks or `sessionStart` / MCP hooks. That is why AWE puts
   enforcement in project command hooks.
 - **Auto trigger** (plan file lands → coding agent wakes) is optional Cursor
-  Automations. Default is you type `/awe-code`. Keep APPROVE and VERIFY human.
+  Automations. Default is you type `/awe-code`. Keep APPROVE and SMOKE human.
 
 ---
 

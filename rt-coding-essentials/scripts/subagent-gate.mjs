@@ -5,22 +5,27 @@
 //   awe-architect            → phase intake|architect
 //   awe-backend-dev          → phase code AND roles.backend.planStatus == approved
 //   awe-frontend-dev         → phase code AND roles.frontend.planStatus == approved
+//   awe-fullstack-dev        → phase code AND roles.fullstack.planStatus == approved
 //   awe-reviewer             → phase review|code
 //   awe-security-reviewer    → phase review|code (optional agent; still gated if spawned)
-//   awe-verifier             → phase verify (writes plans/ Playwright; app source denied)
-// Unknown awe-* (including removed awe-repo-dev) → deny.
+//   awe-smoke-tester         → phase smoke (legacy: verify). Writes plans/ Playwright; app source denied.
+// Unknown awe-* (including removed awe-repo-dev / awe-verifier) → deny.
 // Non-AWE subagents → allow. Missing name field → allow + log (defensive).
 
 import {
   runHook, respond, loadState, isActive, projectDir, extractSubagentName,
-  listTickets, unmetDependencies,
+  listTickets, unmetDependencies, isSmokePhase,
 } from './lib/state.mjs';
 import { audit } from './lib/audit.mjs';
 
-const ROLE_OF_AGENT = { 'awe-backend-dev': 'backend', 'awe-frontend-dev': 'frontend' };
+const ROLE_OF_AGENT = {
+  'awe-backend-dev': 'backend',
+  'awe-frontend-dev': 'frontend',
+  'awe-fullstack-dev': 'fullstack',
+};
 const CORE_AGENTS = new Set([
-  'awe-architect', 'awe-backend-dev', 'awe-frontend-dev',
-  'awe-reviewer', 'awe-security-reviewer', 'awe-verifier',
+  'awe-architect', 'awe-backend-dev', 'awe-frontend-dev', 'awe-fullstack-dev',
+  'awe-reviewer', 'awe-security-reviewer', 'awe-smoke-tester',
 ]);
 
 await runHook(async (input) => {
@@ -50,7 +55,7 @@ await runHook(async (input) => {
   };
 
   if (!CORE_AGENTS.has(name)) {
-    return deny(`${name} is not a core AWE agent — this plugin only ships backend-dev and frontend-dev`);
+    return deny(`${name} is not a core AWE agent — this plugin ships backend-dev, frontend-dev, fullstack-dev, and smoke-tester`);
   }
 
   const some = (pred) => entries.some(([id, t]) => pred(id, t));
@@ -81,9 +86,9 @@ await runHook(async (input) => {
     if (!some((_, t) => ['review', 'code'].includes(t.phase))) {
       return deny(`reviewers run in phase=review|code; no in-flight ticket is in those phases`);
     }
-  } else if (name === 'awe-verifier') {
-    if (!some((_, t) => t.phase === 'verify')) {
-      return deny(`verifier runs in phase=verify; no in-flight ticket is in verify`);
+  } else if (name === 'awe-smoke-tester') {
+    if (!some((_, t) => isSmokePhase(t.phase))) {
+      return deny(`smoke tester runs in phase=smoke; no in-flight ticket is in smoke`);
     }
   }
 
